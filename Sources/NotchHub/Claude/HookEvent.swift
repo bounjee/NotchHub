@@ -1,0 +1,72 @@
+import Foundation
+
+/// A Claude Code hook payload, reduced to the fields NotchHub uses.
+struct HookEvent: Sendable {
+    var name: String
+    var sessionID: String
+    var cwd: String
+    var toolName: String?
+    var toolInputKey: String?
+    var toolSummary: String?
+    var toolUseID: String?
+    var lastAssistantMessage: String?
+    var hasBackgroundTasks = false
+    var notificationType: String?
+    var errorMessage: String?
+    /// `permission_suggestions` re-encoded as JSON, passed back as `updatedPermissions`.
+    var permissionSuggestions: Data?
+
+    init(name: String, sessionID: String, cwd: String = "") {
+        self.name = name
+        self.sessionID = sessionID
+        self.cwd = cwd
+    }
+
+    init?(json data: Data) {
+        guard let object = try? JSONSerialization.jsonObject(with: data) as? [String: Any],
+              let name = object["hook_event_name"] as? String,
+              let sessionID = object["session_id"] as? String
+        else { return nil }
+        self.init(name: name, sessionID: sessionID, cwd: object["cwd"] as? String ?? "")
+
+        toolName = object["tool_name"] as? String
+        toolUseID = object["tool_use_id"] as? String
+        if let input = object["tool_input"] {
+            toolInputKey = (try? JSONSerialization.data(withJSONObject: input, options: [.sortedKeys]))
+                .flatMap { String(data: $0, encoding: .utf8) }
+            if let toolName { toolSummary = Self.summary(tool: toolName, input: input as? [String: Any] ?? [:]) }
+        }
+        lastAssistantMessage = object["last_assistant_message"] as? String
+        if let tasks = object["background_tasks"] as? [Any] { hasBackgroundTasks = !tasks.isEmpty }
+        notificationType = object["notification_type"] as? String
+        if let error = object["error"] as? String { errorMessage = error }
+        if let suggestions = object["permission_suggestions"] as? [Any], !suggestions.isEmpty {
+            permissionSuggestions = try? JSONSerialization.data(withJSONObject: suggestions)
+        }
+    }
+
+    /// Short human-readable description of a tool call, e.g. the Bash command or edited file.
+    static func summary(tool: String, input: [String: Any]) -> String {
+        let keys: [String] = switch tool {
+        case "Bash": ["command"]
+        case "Edit", "MultiEdit", "Write", "Read", "NotebookEdit": ["file_path", "notebook_path"]
+        case "Grep", "Glob": ["pattern"]
+        case "WebFetch": ["url"]
+        case "WebSearch": ["query"]
+        case "Task", "Agent": ["description", "prompt"]
+        default: []
+        }
+        for key in keys {
+            if let value = input[key] as? String, !value.isEmpty { return abbreviatingHome(value) }
+        }
+        if let first = input.keys.sorted().lazy.compactMap({ input[$0] as? String }).first(where: { !$0.isEmpty }) {
+            return first
+        }
+        return ""
+    }
+
+    private static func abbreviatingHome(_ path: String) -> String {
+        let home = NSHomeDirectory()
+        return path.hasPrefix(home) ? "~" + path.dropFirst(home.count) : path
+    }
+}
