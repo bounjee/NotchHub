@@ -10,7 +10,7 @@ struct ClaudeTab: View {
             EmptyState(
                 symbol: "sparkle",
                 title: "Aktif Claude Code oturumu yok",
-                detail: HookInstaller.isInstalled() ? "Bir terminalde claude çalıştır, durumu burada görünür." : "Menü çubuğundaki NotchHub menüsünden hook'ları kur."
+                detail: store.hooksInstalled ? "Bir terminalde claude çalıştır, durumu burada görünür." : "Menü çubuğundaki NotchHub menüsünden hook'ları kur."
             )
         } else {
             AutoScroll {
@@ -224,11 +224,9 @@ struct StatusIndicator: View {
         Group {
             switch status {
             case .working:
-                Spinner()
+                LayerSpinner(color: NSColor(Color.claude))
             case .needsApproval:
-                Circle().fill(Color.claude).frame(width: 8, height: 8)
-                    .shadow(color: .claude, radius: 4)
-                    .phaseAnimator([1.0, 0.45]) { view, phase in view.opacity(phase) } animation: { _ in .easeInOut(duration: 0.7) }
+                LayerPulseDot(color: NSColor(Color.claude))
             case .waitingForUser:
                 Circle().fill(.blue).frame(width: 7, height: 7)
             case .done:
@@ -241,21 +239,6 @@ struct StatusIndicator: View {
             }
         }
         .frame(height: 14)
-    }
-}
-
-private struct Spinner: View {
-    @State private var rotation = 0.0
-
-    var body: some View {
-        Circle()
-            .trim(from: 0.1, to: 0.8)
-            .stroke(Color.claude, style: StrokeStyle(lineWidth: 1.8, lineCap: .round))
-            .frame(width: 10, height: 10)
-            .rotationEffect(.degrees(rotation))
-            .onAppear {
-                withAnimation(.linear(duration: 0.9).repeatForever(autoreverses: false)) { rotation = 360 }
-            }
     }
 }
 

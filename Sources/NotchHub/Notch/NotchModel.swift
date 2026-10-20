@@ -22,11 +22,43 @@ enum NotchTab: String, CaseIterable, Identifiable {
     }
 }
 
+/// Something that briefly shows itself without the pointer.
+/// Claude events open the panel; the rest are compact "activities" beside the notch.
 enum PeekReason: Equatable {
-    case permission, claudeDone, power
+    case permission, claudeDone
+    case power, charged, lowBattery
+    case copied(String)
+
+    var opensPanel: Bool {
+        switch self {
+        case .permission, .claudeDone: true
+        default: false
+        }
+    }
+
+    var duration: Duration {
+        switch self {
+        case .copied: .milliseconds(1600)
+        case .power, .charged: .seconds(3)
+        case .lowBattery, .permission, .claudeDone: .seconds(4)
+        }
+    }
+
+    /// Width of each side wing of the compact activity.
+    var wingWidth: CGFloat {
+        switch self {
+        case .copied: 112
+        default: 78
+        }
+    }
 }
 
-/// UI state of the notch: closed, a compact "activity" (battery peek), or open.
+/// What is being dragged over the notch.
+enum DragKind: Equatable {
+    case files, text
+}
+
+/// UI state of the notch: closed, a compact activity, or open.
 @MainActor @Observable
 final class NotchModel {
     enum Presentation: Equatable { case closed, compact, open }
@@ -42,13 +74,16 @@ final class NotchModel {
     private var lastUserTab: NotchTab = .shelf
     /// Measured size of the open panel, used for hit testing.
     var openSize = CGSize(width: NotchModel.openWidth, height: 160)
-    var isDropTargeted = false
+    /// The pointer rests on the closed notch and it is about to open.
+    var isHoverPrimed = false
+    /// A drag with files or text is near the notch; the panel shows drop zones.
+    var drag: DragKind?
     private(set) var peek: PeekReason?
-    /// Bumped when files land on the shelf, drives a small bounce.
+    /// Bumped when something lands on the notch, drives a small bounce.
     private(set) var dropCount = 0
 
     static let openWidth: CGFloat = 640
-    static let maxOpenHeight: CGFloat = 360
+    static let maxOpenHeight: CGFloat = 380
 
     private var peekTask: Task<Void, Never>?
 
@@ -60,9 +95,13 @@ final class NotchModel {
     }
 
     var isOpen: Bool { presentation == .open }
+    var isPeeking: Bool { peek != nil }
 
     /// Something forces the panel to stay open regardless of the pointer.
-    var isPinnedOpen: Bool { shelf.isSharing }
+    var isPinnedOpen: Bool { shelf.isSharing || drag != nil }
+
+    /// Wing width of the current compact activity.
+    var compactWingWidth: CGFloat { peek?.wingWidth ?? 78 }
 
     func select(_ tab: NotchTab) {
         self.tab = tab
@@ -72,6 +111,7 @@ final class NotchModel {
     func open(tab requested: NotchTab? = nil) {
         peekTask?.cancel()
         peek = nil
+        isHoverPrimed = false
         if presentation != .open { tab = requested ?? defaultTab }
         else if let requested { tab = requested }
         presentation = .open
@@ -84,21 +124,23 @@ final class NotchModel {
         presentation = .closed
     }
 
-    /// Opens (or shows a compact activity) by itself for a few seconds.
+    /// Shows a peek for a few seconds. Never interrupts a panel the user opened,
+    /// and a compact activity never replaces an open Claude peek.
     func showPeek(_ reason: PeekReason, hovering: Bool) {
-        guard !hovering, presentation != .open || peek != nil else { return }
+        guard !hovering, drag == nil else { return }
+        if presentation == .open && peek == nil { return }
+        if let current = peek, current.opensPanel, !reason.opensPanel { return }
+
         peekTask?.cancel()
         peek = reason
-        switch reason {
-        case .power:
-            presentation = .compact
-        case .permission, .claudeDone:
+        if reason.opensPanel {
             tab = .claude
             presentation = .open
+        } else {
+            presentation = .compact
         }
-        let duration: Duration = reason == .power ? .seconds(3) : .seconds(4)
         peekTask = Task { [weak self] in
-            try? await Task.sleep(for: duration)
+            try? await Task.sleep(for: reason.duration)
             guard !Task.isCancelled, let self, self.peek == reason else { return }
             self.endPeek()
         }
@@ -112,14 +154,15 @@ final class NotchModel {
         presentation = .open
     }
 
-    var isPeeking: Bool { peek != nil }
-
     private func endPeek() {
         peek = nil
         if !isPinnedOpen { presentation = .closed }
     }
 
-    func noteDrop() { dropCount += 1 }
+    func noteDrop() {
+        dropCount += 1
+        NSHapticFeedbackManager.defaultPerformer.perform(.levelChange, performanceTime: .now)
+    }
 
     private var defaultTab: NotchTab {
         if !claude.pending.isEmpty { return .claude }

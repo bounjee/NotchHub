@@ -45,7 +45,7 @@ import Testing
         #expect(entry["timeout"] as? Int == 86400)
         let stop = ((hooks["Stop"] as! [[String: Any]])[0]["hooks"] as! [[String: Any]])[0]
         #expect(stop["async"] as? Bool == true)
-        #expect(stop["command"] as? String == hook)
+        #expect(stop["command"] as? String == "'\(hook)'")
     }
 
     @Test func installTwiceDoesNotDuplicate() throws {
@@ -83,12 +83,51 @@ import Testing
         #expect(result["model"] as? String == "opus")
     }
 
-    @Test func backupHoldsPreviousContent() throws {
+    @Test func backupKeepsTheOriginalAcrossReinstalls() throws {
         try write(["model": "opus"])
         let original = try Data(contentsOf: settings)
         try HookInstaller.install(at: settings, hookPath: hook)
+        try HookInstaller.uninstall(at: settings)
+        try HookInstaller.install(at: settings, hookPath: hook)
         let backup = try Data(contentsOf: settings.appendingPathExtension("notchhub-backup"))
         #expect(backup == original)
+    }
+
+    @Test func pathsWithSpacesAndQuotesAreShellQuoted() {
+        #expect(HookInstaller.shellQuoted("/Users/me/My Apps/NotchHub.app/Contents/MacOS/notch-hook")
+            == "'/Users/me/My Apps/NotchHub.app/Contents/MacOS/notch-hook'")
+        #expect(HookInstaller.shellQuoted("/tmp/it's") == #"'/tmp/it'\''s'"#)
+    }
+
+    @Test func quotedEntriesAreStillRecognizedAsOurs() throws {
+        try HookInstaller.install(at: settings, hookPath: "/Users/me/My Apps/NotchHub.app/Contents/MacOS/notch-hook")
+        #expect(HookInstaller.isInstalled(at: settings))
+        try HookInstaller.uninstall(at: settings)
+        #expect(!HookInstaller.isInstalled(at: settings))
+    }
+
+    @Test func symlinkedSettingsStayASymlink() throws {
+        let real = home.appendingPathComponent("dotfiles/claude-settings.json")
+        try FileManager.default.createDirectory(at: real.deletingLastPathComponent(), withIntermediateDirectories: true)
+        try JSONSerialization.data(withJSONObject: ["theme": "dark"]).write(to: real)
+        try FileManager.default.createSymbolicLink(at: settings, withDestinationURL: real)
+
+        try HookInstaller.install(at: settings, hookPath: hook)
+
+        let attributes = try FileManager.default.attributesOfItem(atPath: settings.path)
+        #expect(attributes[.type] as? FileAttributeType == .typeSymbolicLink)
+        let target = try JSONSerialization.jsonObject(with: Data(contentsOf: real)) as! [String: Any]
+        #expect(target["theme"] as? String == "dark")
+        #expect(HookInstaller.isInstalled(in: target))
+    }
+
+    @Test func unrelatedOddShapesAreLeftAlone() throws {
+        try write(["hooks": ["Stop": [["hooks": [["type": "command", "command": "/bin/echo"]]], "not-a-group"]]])
+        try HookInstaller.install(at: settings, hookPath: hook)
+        try HookInstaller.uninstall(at: settings)
+        let stop = (try readSettings()["hooks"] as! [String: Any])["Stop"] as! [Any]
+        #expect(stop.count == 2)
+        #expect(stop[1] as? String == "not-a-group")
     }
 
     @Test func missingFileIsCreated() throws {

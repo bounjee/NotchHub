@@ -28,17 +28,27 @@ guard pathBytes.count < MemoryLayout.size(ofValue: address.sun_path) else { exit
 withUnsafeMutableBytes(of: &address.sun_path) { buffer in
     buffer.copyBytes(from: pathBytes)
 }
-let connected = withUnsafePointer(to: &address) {
-    $0.withMemoryRebound(to: sockaddr.self, capacity: 1) {
-        connect(fd, $0, socklen_t(MemoryLayout<sockaddr_un>.size))
+// macOS refuses (rather than queues) connections while the backlog is full, which happens
+// when many parallel tool calls fire hooks at once. Retry briefly; a socket file left by a
+// crashed app refuses too, so keep the total wait short.
+var connected = false
+for attempt in 0..<6 {
+    let result = withUnsafePointer(to: &address) {
+        $0.withMemoryRebound(to: sockaddr.self, capacity: 1) {
+            connect(fd, $0, socklen_t(MemoryLayout<sockaddr_un>.size))
+        }
     }
+    if result == 0 { connected = true; break }
+    guard errno == ECONNREFUSED || errno == EAGAIN || errno == EINTR, attempt < 5 else { break }
+    usleep(20_000)
 }
-guard connected == 0 else { exit(0) }
+guard connected else { exit(0) }
 
 let written = line.withUnsafeBytes { buffer -> Bool in
     var offset = 0
     while offset < buffer.count {
         let n = write(fd, buffer.baseAddress! + offset, buffer.count - offset)
+        if n < 0 && errno == EINTR { continue }
         if n <= 0 { return false }
         offset += n
     }
@@ -48,7 +58,10 @@ guard written, isPermissionRequest else { exit(0) }
 
 var reply = Data()
 var byte: UInt8 = 0
-while read(fd, &byte, 1) == 1, byte != 0x0A {
+while true {
+    let n = read(fd, &byte, 1)
+    if n < 0 && errno == EINTR { continue }
+    guard n == 1, byte != 0x0A else { break }
     reply.append(byte)
 }
 close(fd)
@@ -71,8 +84,9 @@ default:
 let output: [String: Any] = [
     "hookSpecificOutput": ["hookEventName": "PermissionRequest", "decision": decision]
 ]
-if let data = try? JSONSerialization.data(withJSONObject: output, options: [.sortedKeys]) {
-    FileHandle.standardOutput.write(data)
-    FileHandle.standardOutput.write(Data([0x0A]))
+if var data = try? JSONSerialization.data(withJSONObject: output, options: [.sortedKeys]) {
+    data.append(0x0A)
+    // The throwing variant, so a closed stdout cannot raise an exception and change the exit code.
+    try? FileHandle.standardOutput.write(contentsOf: data)
 }
 exit(0)

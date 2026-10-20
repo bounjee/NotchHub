@@ -29,14 +29,21 @@ struct NotchShape: Shape {
 struct NotchRootView: View {
     let model: NotchModel
 
-    static let compactWingWidth: CGFloat = 78
     static let openTopRadius: CGFloat = 19
     static let closedTopRadius: CGFloat = 6
+    /// How much the closed notch grows while the pointer rests on it.
+    static let hoverLift = CGSize(width: 7.5, height: 5)
 
-    /// Width of each side "ear" next to the closed notch when there is something to show.
+    /// Width of each side "ear" next to the closed notch.
     @MainActor
     static func closedWingWidth(_ model: NotchModel) -> CGFloat {
-        model.claude.headlineStatus == nil ? closedTopRadius : 30
+        let base = model.claude.headlineStatus == nil ? closedTopRadius : 30
+        return base + (model.isHoverPrimed ? hoverLift.width : 0)
+    }
+
+    @MainActor
+    static func closedHeight(_ model: NotchModel) -> CGFloat {
+        model.notchSize.height + (model.isHoverPrimed ? hoverLift.height : 0)
     }
 
     var body: some View {
@@ -47,19 +54,26 @@ struct NotchRootView: View {
 
     private var isOpen: Bool { model.presentation == .open }
     private var topRadius: CGFloat { isOpen ? Self.openTopRadius : Self.closedTopRadius }
+    private var bandHeight: CGFloat { max(model.notchSize.height, 28) }
+    private var needsAttention: Bool { !isOpen && !model.claude.pending.isEmpty }
 
     private var container: some View {
         VStack(spacing: 0) {
             header
             if isOpen {
-                CappedHeight(max: NotchModel.maxOpenHeight - bandHeight - 30 - 30) {
-                    TabContent(model: model)
+                CappedHeight(max: NotchModel.maxOpenHeight - bandHeight - 60) {
+                    if let drag = model.drag {
+                        DropZones(kind: drag, receiveFiles: receiveFiles, receiveText: receiveText)
+                            .transition(.notchBlur)
+                    } else {
+                        TabContent(model: model)
+                    }
                 }
                 .padding(.top, 8)
-                    .transition(.asymmetric(
-                        insertion: .opacity.combined(with: .scale(scale: 0.92, anchor: .top)).animation(.smooth(duration: 0.3).delay(0.05)),
-                        removal: .opacity.animation(.smooth(duration: 0.12))
-                    ))
+                .transition(.asymmetric(
+                    insertion: .notchBlur.combined(with: .scale(scale: 0.94, anchor: .top)).animation(.smooth(duration: 0.32).delay(0.04)),
+                    removal: .opacity.animation(.smooth(duration: 0.12))
+                ))
             }
         }
         .padding(.horizontal, isOpen ? 18 : 0)
@@ -68,23 +82,40 @@ struct NotchRootView: View {
         .padding(.horizontal, topRadius)
         .background(.black)
         .clipShape(NotchShape(topRadius: topRadius, bottomRadius: isOpen ? 24 : 14))
-        .shadow(color: .black.opacity(isOpen ? 0.55 : 0), radius: 14, y: 6)
+        .compositingGroup()
+        .shadow(color: shadowColor, radius: isOpen ? 14 : 8, y: isOpen ? 6 : 2)
+        .keyframeAnimator(initialValue: 1.0, trigger: model.dropCount) { content, scale in
+            content.scaleEffect(x: scale, y: scale, anchor: .top)
+        } keyframes: { _ in
+            SpringKeyframe(1.035, duration: 0.12, spring: .snappy)
+            SpringKeyframe(1.0, duration: 0.35, spring: .bouncy)
+        }
         .onGeometryChange(for: CGSize.self, of: \.size) { size in
             if isOpen { model.openSize = size }
         }
-        .onDrop(of: [.fileURL], isTargeted: Binding(get: { model.isDropTargeted }, set: { model.isDropTargeted = $0 })) { providers in
-            receive(providers)
+        // Fallback for drops that land on the notch itself rather than a zone.
+        .onDrop(of: [.fileURL, .url, .plainText], isTargeted: nil) { providers in
+            if providers.contains(where: { $0.hasItemConformingToTypeIdentifier(UTType.fileURL.identifier) }) {
+                receiveFiles(providers, airDrop: false)
+            } else {
+                receiveText(providers)
+            }
             return true
         }
         .animation(.notchOpen, value: model.claude.headlineStatus)
+        .animation(.spring(response: 0.36, dampingFraction: 0.74), value: model.isHoverPrimed)
+        .animation(.smooth(duration: 0.4), value: needsAttention)
     }
 
-    private var bandHeight: CGFloat { max(model.notchSize.height, 28) }
+    private var shadowColor: Color {
+        if isOpen { return .black.opacity(0.55) }
+        return needsAttention ? Color.claude.opacity(0.7) : .clear
+    }
 
     private var bodyWidth: CGFloat {
         switch model.presentation {
         case .open: NotchModel.openWidth
-        case .compact: model.notchSize.width + 2 * (Self.compactWingWidth - topRadius)
+        case .compact: model.notchSize.width + 2 * (model.compactWingWidth - topRadius)
         case .closed: model.notchSize.width + 2 * (Self.closedWingWidth(model) - topRadius)
         }
     }
@@ -102,18 +133,15 @@ struct NotchRootView: View {
                     BatteryBadge(battery: model.battery)
                 }
                 .frame(height: bandHeight)
-                TabBar(model: model)
+                if model.drag == nil {
+                    TabBar(model: model)
+                        .transition(.notchBlur)
+                }
             }
         case .compact:
-            HStack(spacing: 0) {
-                PowerPeekLeading(battery: model.battery)
-                    .frame(width: Self.compactWingWidth - topRadius)
-                Color.clear.frame(width: model.notchSize.width)
-                PowerPeekTrailing(battery: model.battery)
-                    .frame(width: Self.compactWingWidth - topRadius)
-            }
-            .frame(height: model.notchSize.height)
-            .transition(.opacity)
+            CompactActivity(model: model, wingWidth: model.compactWingWidth - topRadius)
+                .frame(height: model.notchSize.height)
+                .transition(.notchBlur)
         case .closed:
             HStack(spacing: 0) {
                 if let status = model.claude.headlineStatus {
@@ -128,20 +156,215 @@ struct NotchRootView: View {
                     Color.clear.frame(width: model.notchSize.width)
                 }
             }
-            .frame(height: model.notchSize.height)
+            .frame(height: Self.closedHeight(model))
+            .transition(.notchBlur)
         }
     }
 
-    private func receive(_ providers: [NSItemProvider]) {
-        for provider in providers {
-            _ = provider.loadObject(ofClass: URL.self) { url, _ in
-                guard let url else { return }
-                Task { @MainActor in
-                    model.shelf.add([url])
-                    model.noteDrop()
+    private func receiveFiles(_ providers: [NSItemProvider], airDrop: Bool) {
+        Task { @MainActor in
+            var urls: [URL] = []
+            for provider in providers {
+                if let url = await provider.loadURL(), url.isFileURL { urls.append(url) }
+            }
+            guard !urls.isEmpty else { return }
+            withAnimation(.notchOpen) {
+                model.drag = nil
+                if airDrop {
+                    model.shelf.airDrop(urls: urls)
+                } else {
+                    model.shelf.add(urls)
                     model.select(.shelf)
                 }
+                model.noteDrop()
             }
+        }
+    }
+
+    private func receiveText(_ providers: [NSItemProvider]) {
+        Task { @MainActor in
+            for provider in providers {
+                guard let text = await provider.loadText() else { continue }
+                withAnimation(.notchOpen) {
+                    model.drag = nil
+                    model.clipboard.add(text)
+                    model.select(.clipboard)
+                    model.noteDrop()
+                }
+                return
+            }
+        }
+    }
+}
+
+extension NSItemProvider {
+    @MainActor
+    func loadURL() async -> URL? {
+        await withCheckedContinuation { continuation in
+            _ = loadObject(ofClass: URL.self) { url, _ in continuation.resume(returning: url) }
+        }
+    }
+
+    /// Plain text, or the address of a dragged link.
+    @MainActor
+    func loadText() async -> String? {
+        if canLoadObject(ofClass: String.self) {
+            return await withCheckedContinuation { continuation in
+                _ = loadObject(ofClass: String.self) { text, _ in continuation.resume(returning: text) }
+            }
+        }
+        return await loadURL()?.absoluteString
+    }
+}
+
+/// Compact content beside the notch for short-lived activities.
+private struct CompactActivity: View {
+    let model: NotchModel
+    let wingWidth: CGFloat
+
+    var body: some View {
+        HStack(spacing: 0) {
+            leading
+                .frame(width: wingWidth, alignment: .leading)
+                .padding(.leading, 4)
+            Color.clear.frame(width: model.notchSize.width - 8)
+            trailing
+                .frame(width: wingWidth, alignment: .trailing)
+                .padding(.trailing, 4)
+        }
+        .id(model.peek.map { "\($0)" } ?? "")
+    }
+
+    @ViewBuilder
+    private var leading: some View {
+        switch model.peek {
+        case .copied:
+            Label {
+                Text("Kopyalandı").font(.system(size: 11.5, weight: .semibold))
+            } icon: {
+                Image(systemName: "checkmark.circle.fill")
+                    .foregroundStyle(.green)
+                    .symbolEffect(.bounce.down, options: .nonRepeating)
+            }
+            .labelStyle(CompactLabelStyle())
+        case .charged:
+            Label {
+                Text("Doldu").font(.system(size: 11.5, weight: .semibold))
+            } icon: {
+                Image(systemName: "bolt.fill").foregroundStyle(.green)
+            }
+            .labelStyle(CompactLabelStyle())
+        case .lowBattery:
+            Label {
+                Text("Pil az").font(.system(size: 11.5, weight: .semibold))
+            } icon: {
+                Image(systemName: "battery.25percent")
+                    .foregroundStyle(.red)
+                    .symbolEffect(.pulse, options: .repeat(2))
+            }
+            .labelStyle(CompactLabelStyle())
+        default:
+            PowerPeekLeading(battery: model.battery)
+        }
+    }
+
+    @ViewBuilder
+    private var trailing: some View {
+        switch model.peek {
+        case .copied(let text):
+            Text(text.trimmingCharacters(in: .whitespacesAndNewlines).replacingOccurrences(of: "\n", with: " "))
+                .font(.system(size: 11))
+                .foregroundStyle(.white.opacity(0.6))
+                .lineLimit(1)
+                .truncationMode(.tail)
+        case .lowBattery:
+            Text("\(model.battery.percent)%")
+                .font(.system(size: 11.5, weight: .semibold).monospacedDigit())
+                .foregroundStyle(.red)
+        default:
+            PowerPeekTrailing(battery: model.battery)
+        }
+    }
+}
+
+private struct CompactLabelStyle: LabelStyle {
+    func makeBody(configuration: Configuration) -> some View {
+        HStack(spacing: 5) {
+            configuration.icon.font(.system(size: 12, weight: .semibold))
+            configuration.title.foregroundStyle(.white.opacity(0.9))
+        }
+        .fixedSize()
+    }
+}
+
+/// Targets shown while something is dragged over the open notch.
+private struct DropZones: View {
+    let kind: DragKind
+    let receiveFiles: ([NSItemProvider], Bool) -> Void
+    let receiveText: ([NSItemProvider]) -> Void
+
+    var body: some View {
+        HStack(spacing: 10) {
+            switch kind {
+            case .files:
+                DropZone(title: "Rafa ekle", detail: "Yolu saklanır, dosya kopyalanmaz", symbol: "tray.and.arrow.down.fill", types: [.fileURL]) {
+                    receiveFiles($0, false)
+                }
+                DropZone(title: "AirDrop", detail: "Yakındaki cihazlara gönder", symbol: "dot.radiowaves.left.and.right", types: [.fileURL], airDropIcon: true) {
+                    receiveFiles($0, true)
+                }
+            case .text:
+                DropZone(title: "Panoya kaydet", detail: "Geçmişe eklenir ve yapıştırılabilir", symbol: "doc.on.clipboard.fill", types: [.plainText, .url]) {
+                    receiveText($0)
+                }
+            }
+        }
+        .frame(height: 118)
+    }
+}
+
+private struct DropZone: View {
+    let title: String
+    let detail: String
+    let symbol: String
+    let types: [UTType]
+    var airDropIcon = false
+    let perform: ([NSItemProvider]) -> Void
+    @State private var targeted = false
+
+    var body: some View {
+        VStack(spacing: 6) {
+            Group {
+                if airDropIcon, let image = NSSharingService(named: .sendViaAirDrop)?.image {
+                    Image(nsImage: image).resizable().frame(width: 30, height: 30)
+                } else {
+                    Image(systemName: symbol).font(.system(size: 24, weight: .regular))
+                }
+            }
+            .symbolEffect(.bounce, value: targeted)
+            .scaleEffect(targeted ? 1.12 : 1)
+            Text(title).font(.system(size: 13, weight: .semibold))
+            Text(detail).font(.system(size: 10.5)).foregroundStyle(.secondary)
+        }
+        .foregroundStyle(targeted ? Color.white : .white.opacity(0.75))
+        .frame(maxWidth: .infinity, maxHeight: .infinity)
+        .background(
+            RoundedRectangle(cornerRadius: 16, style: .continuous)
+                .fill(targeted ? Color.accentColor.opacity(0.28) : .white.opacity(0.05))
+        )
+        .overlay(
+            RoundedRectangle(cornerRadius: 16, style: .continuous)
+                .strokeBorder(style: StrokeStyle(lineWidth: 1.5, dash: targeted ? [] : [6, 5]))
+                .foregroundStyle(targeted ? Color.accentColor : .white.opacity(0.22))
+        )
+        .scaleEffect(targeted ? 1.02 : 1)
+        .animation(.spring(response: 0.28, dampingFraction: 0.7), value: targeted)
+        .onDrop(of: types, isTargeted: $targeted) { providers in
+            perform(providers)
+            return true
+        }
+        .onChange(of: targeted) { _, isTargeted in
+            if isTargeted { NSHapticFeedbackManager.defaultPerformer.perform(.alignment, performanceTime: .now) }
         }
     }
 }
@@ -153,13 +376,13 @@ private struct TabContent: View {
         Group {
             switch model.tab {
             case .claude: ClaudeTab(store: model.claude)
-            case .shelf: ShelfTab(shelf: model.shelf, isDropTargeted: model.isDropTargeted, dropCount: model.dropCount)
+            case .shelf: ShelfTab(shelf: model.shelf)
             case .clipboard: ClipboardTab(history: model.clipboard)
             }
         }
         .frame(maxWidth: .infinity, alignment: .topLeading)
         .id(model.tab)
-        .transition(.opacity.animation(.smooth(duration: 0.18)))
+        .transition(.notchBlur.animation(.smooth(duration: 0.22)))
     }
 }
 
@@ -179,8 +402,10 @@ private struct ClaudeHeadline: View {
                     .font(.system(size: 12))
                     .foregroundStyle(session.status.tint)
                     .lineLimit(1)
+                    .contentTransition(.opacity)
             }
             .fixedSize()
+            .animation(.smooth, value: session.status)
         }
     }
 }
@@ -193,13 +418,19 @@ private struct TabBar: View {
         HStack(spacing: 2) {
             ForEach(NotchTab.allCases) { tab in
                 Button {
-                    withAnimation(.snappy(duration: 0.25)) { model.select(tab) }
+                    withAnimation(.snappy(duration: 0.28)) { model.select(tab) }
                 } label: {
                     HStack(spacing: 4) {
                         Image(systemName: tab.symbol).font(.system(size: 10, weight: .semibold))
                         Text(tab.title).font(.system(size: 12, weight: .medium))
-                        if tab == .claude, !model.claude.pending.isEmpty {
-                            Circle().fill(Color.claude).frame(width: 6, height: 6)
+                        if let badge = badge(for: tab) {
+                            Text(badge)
+                                .font(.system(size: 9.5, weight: .bold).monospacedDigit())
+                                .padding(.horizontal, 5)
+                                .frame(minWidth: 15, minHeight: 15)
+                                .background(Capsule().fill(tab == .claude ? Color.claude : .white.opacity(0.18)))
+                                .foregroundStyle(.white)
+                                .contentTransition(.numericText())
                         }
                     }
                     .foregroundStyle(model.tab == tab ? .white : .white.opacity(0.5))
@@ -217,6 +448,14 @@ private struct TabBar: View {
         }
         .padding(2)
         .background(Capsule().fill(.white.opacity(0.06)))
+    }
+
+    private func badge(for tab: NotchTab) -> String? {
+        switch tab {
+        case .claude: model.claude.pending.isEmpty ? nil : "\(model.claude.pending.count)"
+        case .shelf: model.shelf.items.isEmpty ? nil : "\(model.shelf.items.count)"
+        case .clipboard: nil
+        }
     }
 }
 
@@ -254,4 +493,27 @@ struct CappedHeight: Layout {
     func placeSubviews(in bounds: CGRect, proposal: ProposedViewSize, subviews: Subviews, cache: inout ()) {
         subviews.first?.place(at: bounds.origin, anchor: .topLeading, proposal: ProposedViewSize(bounds.size))
     }
+}
+
+/// Fades through a blur, like the Dynamic Island content swaps.
+struct BlurFade: ViewModifier {
+    var radius: CGFloat
+    var opacity: Double
+
+    func body(content: Content) -> some View {
+        content.blur(radius: radius).opacity(opacity)
+    }
+}
+
+extension AnyTransition {
+    static var notchBlur: AnyTransition {
+        .modifier(active: BlurFade(radius: 8, opacity: 0), identity: BlurFade(radius: 0, opacity: 1))
+    }
+}
+
+extension Animation {
+    static let notchOpen = Animation.spring(response: 0.42, dampingFraction: 0.8)
+    static let notchClose = Animation.spring(response: 0.45, dampingFraction: 1.0)
+    /// Compact activities pop in with a little bounce.
+    static let notchActivity = Animation.spring(response: 0.38, dampingFraction: 0.72)
 }

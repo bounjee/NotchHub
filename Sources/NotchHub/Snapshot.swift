@@ -63,11 +63,33 @@ enum Snapshot {
             clipboard.record(text)
         }
         model.select(.clipboard)
+        clipboard.togglePin(clipboard.items[2])
         capture("9-open-clipboard")
+
+        model.drag = .files
+        capture("11-drop-files")
+        model.drag = .text
+        capture("12-drop-text")
+        model.drag = nil
 
         model.close()
         model.showPeek(.power, hovering: false)
         capture("10-compact-power")
+        model.showPeek(.copied("git push origin main --force-with-lease"), hovering: false)
+        capture("13-compact-copied")
+        model.showPeek(.lowBattery, hovering: false)
+        capture("14-compact-low-battery")
+        model.showPeek(.charged, hovering: false)
+        capture("15-compact-charged")
+
+        model.close()
+        model.isHoverPrimed = true
+        capture("16-closed-hover-lift")
+        model.isHoverPrimed = false
+        send(["hook_event_name": "PermissionRequest", "session_id": "a", "cwd": "/Users/me/code/dolphydesk", "tool_name": "Edit",
+              "tool_input": ["file_path": "/Users/me/code/dolphydesk/src/app.ts"]], responder: responder)
+        model.close()
+        capture("17-closed-attention")
 
         NSApp.terminate(nil)
     }

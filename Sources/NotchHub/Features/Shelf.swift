@@ -5,7 +5,7 @@ struct ShelfItem: Identifiable, Hashable, Codable {
     var id: String { path }
     let path: String
     var url: URL { URL(fileURLWithPath: path) }
-    var name: String { FileManager.default.displayName(atPath: path) }
+    var name: String { (path as NSString).lastPathComponent }
 }
 
 /// Files dropped on the notch. Only paths are stored, the files are never copied.
@@ -17,6 +17,7 @@ final class Shelf: NSObject, NSSharingServiceDelegate {
     private(set) var isSharing = false
     /// The app that was frontmost before AirDrop activated us, re-activated afterwards.
     private var previousApp: NSRunningApplication?
+    private var sharingTimeout: Task<Void, Never>?
 
     private let storeURL: URL
 
@@ -65,12 +66,30 @@ final class Shelf: NSObject, NSSharingServiceDelegate {
     }
 
     func airDrop(_ shared: [ShelfItem]) {
-        guard !shared.isEmpty, let service = NSSharingService(named: .sendViaAirDrop) else { return }
+        airDrop(urls: shared.map(\.url))
+    }
+
+    func airDrop(urls: [URL]) {
+        let urls = urls.filter { FileManager.default.fileExists(atPath: $0.path) }
+        guard !urls.isEmpty, let service = NSSharingService(named: .sendViaAirDrop),
+              service.canPerform(withItems: urls)
+        else { return }
         service.delegate = self
         isSharing = true
+        // If the sheet never reports back, do not keep the panel pinned open forever.
+        sharingTimeout?.cancel()
+        sharingTimeout = Task { [weak self] in
+            try? await Task.sleep(for: .seconds(180))
+            guard !Task.isCancelled else { return }
+            self?.isSharing = false
+        }
         previousApp = NSWorkspace.shared.frontmostApplication
         NSApp.activate()
-        service.perform(withItems: shared.map(\.url))
+        service.perform(withItems: urls)
+    }
+
+    func open(_ item: ShelfItem) {
+        NSWorkspace.shared.open(item.url)
     }
 
     nonisolated func sharingService(_ sharingService: NSSharingService, didShareItems items: [Any]) {
@@ -82,6 +101,7 @@ final class Shelf: NSObject, NSSharingServiceDelegate {
     }
 
     private func finishSharing() {
+        sharingTimeout?.cancel()
         isSharing = false
         if let previousApp, previousApp != NSRunningApplication.current { previousApp.activate() }
         previousApp = nil

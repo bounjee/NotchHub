@@ -20,8 +20,13 @@ enum HookInstaller {
     ]
 
     enum Failure: LocalizedError {
-        case invalidJSON
-        var errorDescription: String? { "~/.claude/settings.json geçerli bir JSON değil. Dosyaya dokunulmadı." }
+        case invalidJSON, hookMissing(String)
+        var errorDescription: String? {
+            switch self {
+            case .invalidJSON: "~/.claude/settings.json geçerli bir JSON değil. Dosyaya dokunulmadı."
+            case .hookMissing(let path): "\(path) bulunamadı. NotchHub'ı /Applications klasörüne kopyalayıp tekrar dene."
+            }
+        }
     }
 
     static var settingsURL: URL {
@@ -34,7 +39,7 @@ enum HookInstaller {
         var settings = removing(from: settings)
         var hooks = settings["hooks"] as? [String: Any] ?? [:]
         for event in events {
-            var hook: [String: Any] = ["type": "command", "command": hookPath]
+            var hook: [String: Any] = ["type": "command", "command": shellQuoted(hookPath)]
             if event.async { hook["async"] = true } else { hook["timeout"] = 86400 }
             var group: [String: Any] = ["hooks": [hook]]
             if event.matcher { group["matcher"] = "*" }
@@ -72,6 +77,11 @@ enum HookInstaller {
         }
     }
 
+    /// Claude Code runs `command` through a shell, so paths with spaces must be quoted.
+    static func shellQuoted(_ path: String) -> String {
+        "'" + path.replacingOccurrences(of: "'", with: "'\\''") + "'"
+    }
+
     private static func isOurs(_ entry: Any) -> Bool {
         ((entry as? [String: Any])?["command"] as? String)?.contains(marker) == true
     }
@@ -90,15 +100,17 @@ enum HookInstaller {
         try modify(url) { removing(from: $0) }
     }
 
-    private static func modify(_ url: URL, _ transform: ([String: Any]) -> [String: Any]) throws {
+    private static func modify(_ link: URL, _ transform: ([String: Any]) -> [String: Any]) throws {
         let fm = FileManager.default
+        // Dotfile setups often symlink settings.json; write through the link instead of replacing it.
+        let url = link.resolvingSymlinksInPath()
         let exists = fm.fileExists(atPath: url.path)
         let current = try read(url)
-        if exists {
-            let backup = url.appendingPathExtension("notchhub-backup")
-            try? fm.removeItem(at: backup)
+        let backup = link.appendingPathExtension("notchhub-backup")
+        // Keep the first backup: it is the state from before NotchHub ever touched the file.
+        if exists && !fm.fileExists(atPath: backup.path) {
             try fm.copyItem(at: url, to: backup)
-        } else {
+        } else if !exists {
             try fm.createDirectory(at: url.deletingLastPathComponent(), withIntermediateDirectories: true)
         }
         let data = try JSONSerialization.data(withJSONObject: transform(current), options: [.prettyPrinted, .sortedKeys, .withoutEscapingSlashes])

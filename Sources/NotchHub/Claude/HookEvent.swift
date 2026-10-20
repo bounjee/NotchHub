@@ -32,15 +32,18 @@ struct HookEvent: Sendable {
         toolName = object["tool_name"] as? String
         toolUseID = object["tool_use_id"] as? String
         if let input = object["tool_input"] {
-            toolInputKey = (try? JSONSerialization.data(withJSONObject: input, options: [.sortedKeys]))
-                .flatMap { String(data: $0, encoding: .utf8) }
+            // JSONSerialization raises an Objective-C exception (not a Swift error) for scalars.
+            toolInputKey = JSONSerialization.isValidJSONObject(input)
+                ? (try? JSONSerialization.data(withJSONObject: input, options: [.sortedKeys])).flatMap { String(data: $0, encoding: .utf8) }
+                : String(describing: input)
             if let toolName { toolSummary = Self.summary(tool: toolName, input: input as? [String: Any] ?? [:]) }
         }
         lastAssistantMessage = object["last_assistant_message"] as? String
         if let tasks = object["background_tasks"] as? [Any] { hasBackgroundTasks = !tasks.isEmpty }
         notificationType = object["notification_type"] as? String
         if let error = object["error"] as? String { errorMessage = error }
-        if let suggestions = object["permission_suggestions"] as? [Any], !suggestions.isEmpty {
+        if let suggestions = object["permission_suggestions"] as? [Any], !suggestions.isEmpty,
+           JSONSerialization.isValidJSONObject(suggestions) {
             permissionSuggestions = try? JSONSerialization.data(withJSONObject: suggestions)
         }
     }

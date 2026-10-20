@@ -28,9 +28,11 @@ struct ClipboardTab: View {
                 AutoScroll {
                     LazyVStack(spacing: 4) {
                         ForEach(history.items) { item in
-                            ClipboardRow(item: item, isCopied: copiedID == item.id) {
+                            ClipboardRow(item: item, isCopied: copiedID == item.id, togglePin: {
+                                withAnimation(.snappy) { history.togglePin(item) }
+                            }) {
                                 history.copy(item)
-                                withAnimation(.snappy) { copiedID = history.items.first?.id }
+                                withAnimation(.snappy) { copiedID = history.items.first { $0.text == item.text }?.id }
                                 Task {
                                     try? await Task.sleep(for: .seconds(1.2))
                                     withAnimation { copiedID = nil }
@@ -38,15 +40,18 @@ struct ClipboardTab: View {
                             } remove: {
                                 withAnimation(.snappy) { history.remove(item) }
                             }
+                            .transition(.move(edge: .top).combined(with: .opacity))
                         }
                     }
                 }
                 HStack {
-                    Text("Son \(history.items.count) öğe · sadece bellekte")
+                    Text("\(history.items.count) öğe · sadece bellekte · tıkla kopyala")
                         .font(.system(size: 11))
                         .foregroundStyle(.tertiary)
                     Spacer()
-                    Button("Temizle") { withAnimation(.snappy) { history.clear() } }
+                    Button(history.items.contains(where: \.isPinned) ? "Sabitsizleri temizle" : "Temizle") {
+                        withAnimation(.snappy) { history.clear() }
+                    }
                         .buttonStyle(PillButtonStyle(kind: .destructive))
                 }
             }
@@ -57,6 +62,7 @@ struct ClipboardTab: View {
 private struct ClipboardRow: View {
     let item: ClipboardItem
     let isCopied: Bool
+    let togglePin: () -> Void
     let copy: () -> Void
     let remove: () -> Void
     @State private var hovering = false
@@ -73,10 +79,21 @@ private struct ClipboardRow: View {
                     .foregroundStyle(.green)
                     .transition(.opacity.combined(with: .scale(scale: 0.8)))
             } else if hovering {
-                Button(action: remove) { Image(systemName: "trash").font(.system(size: 11)) }
-                    .buttonStyle(.plain)
-                    .foregroundStyle(.secondary)
-                    .help("Sil")
+                HStack(spacing: 10) {
+                    Button(action: togglePin) {
+                        Image(systemName: item.isPinned ? "pin.slash" : "pin").font(.system(size: 11))
+                    }
+                    .help(item.isPinned ? "Sabitlemeyi kaldır" : "Sabitle")
+                    Button(action: remove) { Image(systemName: "trash").font(.system(size: 11)) }
+                        .help("Sil")
+                }
+                .buttonStyle(.plain)
+                .foregroundStyle(.secondary)
+                .transition(.opacity)
+            } else if item.isPinned {
+                Image(systemName: "pin.fill")
+                    .font(.system(size: 10))
+                    .foregroundStyle(.orange.opacity(0.9))
             } else {
                 TimelineView(.periodic(from: .now, by: 10)) { context in
                     let seconds = context.date.timeIntervalSince(item.copiedAt)
@@ -90,7 +107,7 @@ private struct ClipboardRow: View {
         .padding(.vertical, 7)
         .background(RoundedRectangle(cornerRadius: 9, style: .continuous).fill(hovering ? .white.opacity(0.1) : Color.cardFill))
         .contentShape(Rectangle())
-        .onHover { hovering = $0 }
+        .onHover { isHovering in withAnimation(.snappy(duration: 0.15)) { hovering = isHovering } }
         .onTapGesture(perform: copy)
         .help("Tıkla: panoya kopyala")
     }

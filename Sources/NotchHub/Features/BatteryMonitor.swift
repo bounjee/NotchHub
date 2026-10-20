@@ -4,15 +4,21 @@ import Observation
 
 @MainActor @Observable
 final class BatteryMonitor {
+    enum Event: Equatable { case pluggedChanged, charged, low }
+
     private(set) var percent = 0
     private(set) var isCharging = false
     private(set) var isPluggedIn = false
     private(set) var hasBattery = false
 
-    /// Called when the adapter is connected or disconnected.
-    var onPowerSourceChange: (() -> Void)?
+    static let lowThreshold = 20
+
+    var onEvent: ((Event) -> Void)?
 
     private var source: CFRunLoopSource?
+    /// Each warning fires once until the power state resets it.
+    private var warnedLow = false
+    private var announcedCharged = false
 
     func start() {
         refresh(notify: false)
@@ -35,15 +41,37 @@ final class BatteryMonitor {
             else { continue }
             let current = description[kIOPSCurrentCapacityKey] as? Int ?? 0
             let max = description[kIOPSMaxCapacityKey] as? Int ?? 100
+            let percent = max > 0 ? Int((Double(current) / Double(max) * 100).rounded()) : current
             let plugged = (description[kIOPSPowerSourceStateKey] as? String) == kIOPSACPowerValue
-            let changed = hasBattery && plugged != isPluggedIn
-
-            hasBattery = true
-            percent = max > 0 ? Int((Double(current) / Double(max) * 100).rounded()) : current
-            isCharging = description[kIOPSIsChargingKey] as? Bool ?? false
-            isPluggedIn = plugged
-            if notify && changed { onPowerSourceChange?() }
+            let charging = description[kIOPSIsChargingKey] as? Bool ?? false
+            let events = update(percent: percent, plugged: plugged, charging: charging)
+            if notify { events.forEach { onEvent?($0) } }
             return
         }
+    }
+
+    /// Applies a new reading and returns the events it causes.
+    @discardableResult
+    func update(percent: Int, plugged: Bool, charging: Bool) -> [Event] {
+        var events: [Event] = []
+        let isFull = plugged && percent >= 100
+        let isLow = !plugged && percent <= Self.lowThreshold
+        if !hasBattery {
+            // The state at launch is not news.
+            announcedCharged = isFull
+            warnedLow = isLow
+        } else {
+            if plugged != isPluggedIn { events.append(.pluggedChanged) }
+            if isFull && !announcedCharged { events.append(.charged) }
+            if isLow && !warnedLow { events.append(.low) }
+            if plugged { warnedLow = false } else { announcedCharged = false }
+            if isFull { announcedCharged = true }
+            if isLow { warnedLow = true }
+        }
+        hasBattery = true
+        self.percent = percent
+        isCharging = charging
+        isPluggedIn = plugged
+        return events
     }
 }

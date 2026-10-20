@@ -41,6 +41,11 @@ final class ClaudeStore {
     private(set) var sessions: [String: ClaudeSession] = [:]
     private(set) var pending: [PendingPermission] = []
     private(set) var lastEventAt: Date?
+    /// The most urgent status across sessions, used by the closed notch.
+    /// Stored (not computed) so views that read it only update when it actually changes.
+    private(set) var headlineStatus: SessionStatus?
+    /// Whether our hooks are in ~/.claude/settings.json; kept here so views never read the file.
+    var hooksInstalled = false
 
     /// Called when the panel should briefly open by itself.
     var onPeek: ((PeekReason) -> Void)?
@@ -51,21 +56,21 @@ final class ClaudeStore {
 
     /// Recent PreToolUse calls per session, used to find the `tool_use_id` of a permission request.
     private var recentToolUses: [String: [(name: String, inputKey: String?, id: String)]] = [:]
+    /// Tool calls that already finished; their ids must never be given to a new request.
+    private var finishedToolUseIDs: [String] = []
 
     var sortedSessions: [ClaudeSession] {
         sessions.values.sorted { $0.lastEventAt > $1.lastEventAt }
     }
 
-    /// The most urgent status across sessions, used by the closed-notch indicator.
-    var headlineStatus: SessionStatus? {
+    private func refreshHeadline() {
         let statuses = Set(sessions.values.map(\.status))
-        for status in [SessionStatus.needsApproval, .error, .working, .waitingForUser, .done] where statuses.contains(status) {
-            return status
-        }
-        return nil
+        let headline = [SessionStatus.needsApproval, .error, .working, .waitingForUser, .done].first { statuses.contains($0) }
+        if headline != headlineStatus { headlineStatus = headline }
     }
 
     func handle(_ event: HookEvent, responder: PermissionReplying? = nil, now: Date = Date()) {
+        defer { refreshHeadline() }
         defer { log.notice("hook \(event.name, privacy: .public) pending=\(self.pending.count) status=\(String(describing: self.sessions[event.sessionID]?.status), privacy: .public)") }
         lastEventAt = now
         let sid = event.sessionID
@@ -83,9 +88,11 @@ final class ClaudeStore {
                 var list = recentToolUses[sid, default: []]
                 list.append((name, event.toolInputKey, id))
                 recentToolUses[sid] = Array(list.suffix(16))
-                // async hooks may deliver PreToolUse after its PermissionRequest
+                // Async hooks may deliver PreToolUse after its PermissionRequest; that request
+                // has no id yet, or got the id of an earlier identical call that already finished.
                 if let index = pending.firstIndex(where: {
-                    $0.sessionID == sid && $0.toolUseID == nil && $0.toolName == name && $0.toolInputKey == event.toolInputKey
+                    $0.sessionID == sid && $0.toolName == name && $0.toolInputKey == event.toolInputKey
+                        && ($0.toolUseID == nil || finishedToolUseIDs.contains($0.toolUseID!))
                 }) {
                     pending[index].toolUseID = id
                 }
@@ -98,7 +105,10 @@ final class ClaudeStore {
         case "PermissionRequest":
             guard let responder else { return }
             let name = event.toolName ?? "?"
-            let match = recentToolUses[sid]?.last { $0.name == name && $0.inputKey == event.toolInputKey }
+            let taken = Set(pending.compactMap(\.toolUseID))
+            let match = recentToolUses[sid]?.last {
+                $0.name == name && $0.inputKey == event.toolInputKey && !taken.contains($0.id) && !finishedToolUseIDs.contains($0.id)
+            }
             pending.append(PendingPermission(
                 sessionID: sid, toolName: name, toolInputKey: event.toolInputKey,
                 summary: event.toolSummary ?? "", toolUseID: match?.id,
@@ -113,8 +123,12 @@ final class ClaudeStore {
                 let request = pending.remove(at: index)
                 request.responder.reply(Self.replyLine(.none, suggestions: nil))
             }
-            // A late async PostToolUse must not revive a finished session.
-            guard sessions[sid]?.status != .done else { touch(sid, now); return }
+            if let id = event.toolUseID {
+                recentToolUses[sid]?.removeAll { $0.id == id }
+                finishedToolUseIDs = Array((finishedToolUseIDs + [id]).suffix(64))
+            }
+            // A late async PostToolUse must not revive a finished or failed session.
+            if let status = sessions[sid]?.status, status == .done || status == .error { touch(sid, now); return }
             update(sid, event, now) { $0.status = self.hasPending(sid) ? .needsApproval : .working }
 
         case "Notification":
@@ -153,6 +167,7 @@ final class ClaudeStore {
     func answer(_ id: PendingPermission.ID, _ decision: PermissionDecision, now: Date = Date()) {
         guard let index = pending.firstIndex(where: { $0.id == id }) else { return }
         let request = pending.remove(at: index)
+        defer { refreshHeadline() }
         log.notice("answered \(String(describing: decision), privacy: .public)")
         request.responder.reply(Self.replyLine(decision, suggestions: request.suggestions))
         if var session = sessions[request.sessionID], session.status == .needsApproval, !hasPending(request.sessionID) {
@@ -166,6 +181,7 @@ final class ClaudeStore {
     func responderClosed(_ responder: PermissionReplying) {
         guard let index = pending.firstIndex(where: { $0.responder === responder }) else { return }
         let request = pending.remove(at: index)
+        defer { refreshHeadline() }
         log.notice("hook connection closed, request dropped")
         if var session = sessions[request.sessionID], session.status == .needsApproval, !hasPending(request.sessionID) {
             session.status = .working
@@ -174,6 +190,7 @@ final class ClaudeStore {
     }
 
     func removeExpiredSessions(now: Date = Date()) {
+        defer { refreshHeadline() }
         sessions = sessions.filter { _, session in
             if session.status == .done { return now.timeIntervalSince(session.statusSince) < Self.doneLifetime }
             if session.status == .needsApproval { return true }
@@ -182,6 +199,7 @@ final class ClaudeStore {
     }
 
     func dismiss(_ id: ClaudeSession.ID) {
+        defer { refreshHeadline() }
         resolvePending(in: id, with: .none)
         sessions[id] = nil
     }

@@ -110,6 +110,39 @@ import Testing
         try waitUntil { log.names == ["SessionStart"] }
     }
 
+    @Test func parallelHookProcessesAllArrive() throws {
+        let log = try startServer { _ in nil }
+        DispatchQueue.concurrentPerform(iterations: 40) { i in
+            _ = try? runHook(#"{"hook_event_name":"PostToolUse","session_id":"p\#(i)"}"#)
+        }
+        try waitUntil { log.names.count == 40 }
+    }
+
+    @Test func staleSocketFileDoesNotSlowHooksDown() throws {
+        // A crashed app leaves the socket file behind with nobody listening.
+        try FileManager.default.createDirectory(atPath: (socketPath as NSString).deletingLastPathComponent, withIntermediateDirectories: true)
+        let fd = socket(AF_UNIX, SOCK_STREAM, 0)
+        var address = sockaddr_un()
+        address.sun_family = sa_family_t(AF_UNIX)
+        withUnsafeMutableBytes(of: &address.sun_path) { $0.copyBytes(from: Array(socketPath.utf8)) }
+        _ = withUnsafePointer(to: &address) {
+            $0.withMemoryRebound(to: sockaddr.self, capacity: 1) { bind(fd, $0, socklen_t(MemoryLayout<sockaddr_un>.size)) }
+        }
+        close(fd)
+        let start = Date()
+        let result = try runHook(permission)
+        #expect(result.status == 0)
+        #expect(result.stdout.isEmpty)
+        #expect(Date().timeIntervalSince(start) < 0.5)
+    }
+
+    @Test func emptyInputExitsQuietly() throws {
+        _ = try startServer { _ in nil }
+        let result = try runHook("")
+        #expect(result.status == 0)
+        #expect(result.stdout.isEmpty)
+    }
+
     private func waitUntil(_ condition: () -> Bool) throws {
         let deadline = Date().addingTimeInterval(2)
         while !condition() && Date() < deadline { Thread.sleep(forTimeInterval: 0.02) }

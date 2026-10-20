@@ -33,13 +33,27 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
             Snapshot.run(into: URL(fileURLWithPath: arguments[index + 1]))
             return
         }
+        // Launch at login plus a manual launch must not give two panels fighting over the socket.
+        if HubServer.isServing(at: HubServer.defaultPath) {
+            NSLog("NotchHub: another instance is running, quitting")
+            NSApp.terminate(nil)
+            return
+        }
         battery.start()
         clipboard.start()
         windowController.start()
         setUpStatusItem()
 
         claude.onPeek = { [weak self] reason in self?.peek(reason) }
-        battery.onPowerSourceChange = { [weak self] in self?.peek(.power) }
+        battery.onEvent = { [weak self] event in
+            switch event {
+            case .pluggedChanged: self?.peek(.power)
+            case .charged: self?.peek(.charged)
+            case .low: self?.peek(.lowBattery)
+            }
+        }
+        clipboard.onNewItem = { [weak self] item in self?.peek(.copied(item.text)) }
+        claude.hooksInstalled = HookInstaller.isInstalled()
 
         let claude = claude
         let server = HubServer(
@@ -63,11 +77,11 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
     }
 
     func applicationWillTerminate(_ notification: Notification) {
-        if let server { unlink(server.path) }
+        server?.removeSocketFile()
     }
 
     private func peek(_ reason: PeekReason) {
-        withAnimation(.notchOpen) {
+        withAnimation(reason.opensPanel ? .notchOpen : .notchActivity) {
             model.showPeek(reason, hovering: windowController.isPointerInside)
         }
         if reason == .permission {
@@ -110,11 +124,13 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
             if HookInstaller.isInstalled() {
                 try HookInstaller.uninstall()
             } else {
+                guard FileManager.default.isExecutableFile(atPath: hookPath) else { throw HookInstaller.Failure.hookMissing(hookPath) }
                 try HookInstaller.install(hookPath: hookPath)
             }
         } catch {
             showError("Hook ayarı değiştirilemedi", error)
         }
+        claude.hooksInstalled = HookInstaller.isInstalled()
     }
 
     /// The bundled hook binary, so a build run from outside /Applications still installs a working path.
