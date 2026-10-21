@@ -31,11 +31,10 @@ private final class PetPanel: NSPanel {
     override func constrainFrameRect(_ frameRect: NSRect, to screen: NSScreen?) -> NSRect { frameRect }
 }
 
-/// The pet's stage: a small window holding the sprite, blush, speech bubble and sleep z's.
+/// The pet's stage: a small window holding the sprite, speech bubble and sleep z's.
 final class PetView: NSView {
     let sprite = ClawdSprite()
     private let body = CALayer()
-    private let blush = CALayer()
     private let bubble = CALayer()
     private let bubbleText = CATextLayer()
     private let sleepZs = CALayer()
@@ -66,19 +65,6 @@ final class PetView: NSView {
         body.position = CGPoint(x: Self.stageSize.width / 2, y: 4)
         sprite.frame = body.bounds
         body.addSublayer(sprite)
-
-        // Rosy cheeks under the eyes, shown when it is happy or touched.
-        blush.frame = body.bounds
-        blush.opacity = 0
-        let pixel = Self.pixel
-        for column in [3.0, 13.0] {
-            let cheek = CALayer()
-            cheek.backgroundColor = NSColor(srgbRed: 1, green: 0.55, blue: 0.62, alpha: 0.9).cgColor
-            cheek.frame = CGRect(x: column * pixel, y: size.height - 2 * pixel * Clawd.pixelAspect, width: 2 * pixel, height: pixel * 0.9)
-            cheek.cornerRadius = pixel * 0.4
-            blush.addSublayer(cheek)
-        }
-        body.addSublayer(blush)
 
         bubble.backgroundColor = NSColor(white: 0.1, alpha: 0.94).cgColor
         bubble.cornerRadius = 11
@@ -219,14 +205,6 @@ final class PetView: NSView {
         }
         if !current.isEmpty { result.append(current) }
         return result
-    }
-
-    func blushFor(_ seconds: TimeInterval) {
-        let glow = CAKeyframeAnimation(keyPath: "opacity")
-        glow.values = [0, 1, 1, 0]
-        glow.keyTimes = [0, 0.1, 0.8, 1]
-        glow.duration = seconds
-        blush.add(glow, forKey: "blush")
     }
 
     func setSleeping(_ sleeping: Bool) {
@@ -387,7 +365,6 @@ final class DesktopPet {
             celebrationsSeen = model.claudeCelebration
             wake(greeting: nil)
             view.sprite.hop(twice: true)
-            view.blushFor(2.5)
             view.say(String(localized: "✓ \(model.lastFinished ?? "Claude") done"))
         }
         let status = model.claude.headlineStatus
@@ -473,7 +450,6 @@ final class DesktopPet {
         let facts = PetBrain.info(store: model.claude)
         clicks += 1
         view.sprite.hop()
-        view.blushFor(2)
         view.say(facts[(clicks - 1) % facts.count])
         scheduleSleep()
     }
