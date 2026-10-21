@@ -286,8 +286,29 @@ struct StatusIndicator: View {
     }
 }
 
+struct EmptyState: View {
+    let symbol: String
+    let title: String
+    let detail: String
+
+    var body: some View {
+        HStack(spacing: 12) {
+            Image(systemName: symbol)
+                .font(.system(size: 20, weight: .light))
+                .foregroundStyle(.secondary)
+            VStack(alignment: .leading, spacing: 2) {
+                Text(verbatim: title).font(.system(size: 13, weight: .medium))
+                Text(verbatim: detail).font(.system(size: 11)).foregroundStyle(.secondary)
+            }
+            Spacer()
+        }
+        .padding(14)
+        .background(RoundedRectangle(cornerRadius: 12, style: .continuous).fill(Color.cardFill))
+    }
+}
+
 struct PillButtonStyle: ButtonStyle {
-    enum Kind { case primary, secondary }
+    enum Kind { case primary, secondary, destructive }
     var kind: Kind
 
     func makeBody(configuration: Configuration) -> some View {
@@ -295,11 +316,19 @@ struct PillButtonStyle: ButtonStyle {
             .font(.system(size: 12, weight: .semibold))
             .padding(.horizontal, 12)
             .frame(height: 26)
-            .foregroundStyle(kind == .primary ? .white : .white.opacity(0.9))
-            .background(Capsule().fill(kind == .primary ? Color.claude : .white.opacity(0.12)))
+            .foregroundStyle(kind == .primary ? .white : kind == .destructive ? .red : .white.opacity(0.9))
+            .background(Capsule().fill(background))
             .scaleEffect(configuration.isPressed ? 0.96 : 1)
             .opacity(configuration.isPressed ? 0.85 : 1)
             .animation(.snappy(duration: 0.15), value: configuration.isPressed)
             .contentShape(Capsule())
+    }
+
+    private var background: Color {
+        switch kind {
+        case .primary: .claude
+        case .secondary: .white.opacity(0.12)
+        case .destructive: .red.opacity(0.15)
+        }
     }
 }

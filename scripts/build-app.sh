@@ -36,6 +36,8 @@ cat > "$APP/Contents/Info.plist" <<PLIST
     <key>CFBundleDevelopmentRegion</key><string>en</string>
     <key>CFBundleLocalizations</key><array><string>en</string><string>tr</string></array>
     <key>NSAppleEventsUsageDescription</key><string>To bring the terminal tab of a Claude Code session to the front.</string>
+    <key>NSDownloadsFolderUsageDescription</key><string>To put finished downloads on the shelf.</string>
+    <key>NSDesktopFolderUsageDescription</key><string>To show previews of new screenshots on the shelf.</string>
 </dict>
 </plist>
 PLIST

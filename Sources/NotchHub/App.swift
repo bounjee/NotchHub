@@ -18,7 +18,10 @@ enum NotchHubApp {
 @MainActor
 final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
     private let claude = ClaudeStore(limitsURL: ClaudeStore.defaultLimitsURL)
-    private lazy var model = NotchModel(claude: claude)
+    private let shelf = Shelf()
+    private let clipboard = ClipboardHistory()
+    private let arrivals = FileArrivals()
+    private lazy var model = NotchModel(claude: claude, shelf: shelf, clipboard: clipboard)
     private lazy var windowController = NotchWindowController(model: model)
     private lazy var pet = DesktopPet(model: model) { [weak self] in
         guard let self else { return }
@@ -40,10 +43,19 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
             NSApp.terminate(nil)
             return
         }
+        clipboard.start()
         windowController.start()
         setUpStatusItem()
 
         claude.onPeek = { [weak self] reason in self?.peek(reason) }
+        clipboard.onNewItem = { [weak self] item in self?.peek(.copied(item.text)) }
+        // New screenshots and downloads land on the shelf for a day.
+        arrivals.onArrival = { [weak self] url, kind in
+            guard let self else { return }
+            withAnimation(.snappy) { self.shelf.add([url], source: kind) }
+            self.peek(kind == .screenshot ? .screenshot(url.path) : .downloaded(url.lastPathComponent))
+        }
+        arrivals.start()
         claude.hooksInstalled = HookInstaller.isInstalled()
         if DesktopPet.isEnabled { pet.start() }
 
@@ -64,7 +76,10 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
         }
 
         maintenanceTimer = Timer.scheduledTimer(withTimeInterval: 30, repeats: true) { [weak self] _ in
-            MainActor.assumeIsolated { self?.claude.removeExpiredSessions() }
+            MainActor.assumeIsolated {
+                self?.claude.removeExpiredSessions()
+                self?.shelf.removeExpired()
+            }
         }
         maintenanceTimer?.tolerance = 5
     }

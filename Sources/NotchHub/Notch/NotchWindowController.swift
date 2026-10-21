@@ -36,6 +36,8 @@ final class NotchWindowController {
     private var openTask: Task<Void, Never>?
     private var closeTask: Task<Void, Never>?
     private var exitTimer: Timer?
+    private var dragChangeCount = NSPasteboard(name: .drag).changeCount
+    private var dragEndTask: Task<Void, Never>?
     private var lastHaptic = Date.distantPast
     private var screen: NSScreen?
 
@@ -86,7 +88,7 @@ final class NotchWindowController {
         let handler: (NSEvent) -> Void = { [weak self] event in
             MainActor.assumeIsolated { self?.handle(event) }
         }
-        let mask: NSEvent.EventTypeMask = [.mouseMoved, .leftMouseDown]
+        let mask: NSEvent.EventTypeMask = [.mouseMoved, .leftMouseDragged, .leftMouseDown, .leftMouseUp]
         if let global = NSEvent.addGlobalMonitorForEvents(matching: mask, handler: handler) { monitors.append(global) }
         if let local = NSEvent.addLocalMonitorForEvents(matching: mask, handler: { handler($0); return $0 }) { monitors.append(local) }
 
@@ -101,6 +103,7 @@ final class NotchWindowController {
             _ = model.openSize
             _ = model.isHoverPrimed
             _ = model.peek
+            _ = model.drag
             _ = model.claude.indicator
         } onChange: { [weak self] in
             Task { @MainActor in
@@ -125,6 +128,7 @@ final class NotchWindowController {
             closeTask = nil
             exitTimer?.invalidate()
             exitTimer = nil
+            model.drag = nil
             model.isHoverPrimed = false
             model.close()
             panel.orderOut(nil)
@@ -180,6 +184,7 @@ final class NotchWindowController {
         let location = NSEvent.mouseLocation
         switch event.type {
         case .leftMouseDown:
+            dragChangeCount = NSPasteboard(name: .drag).changeCount
             // A click on the closed notch opens it right away. The notch sits in the menu bar,
             // whose clicks never reach our window, so this comes from the event monitor.
             if !model.isOpen, screen != nil, hoverRect().contains(location) {
@@ -188,11 +193,71 @@ final class NotchWindowController {
                 withAnimation(.notchOpen) { model.open() }
                 haptic(force: true)
             }
+        case .leftMouseDragged:
+            trackDrag(at: location)
+        case .leftMouseUp:
+            endDrag()
         default:
             break
         }
         evaluateHover(at: location)
         updateMouseHandling()
+    }
+
+    private var notchRect: NSRect {
+        guard let screen else { return .zero }
+        return NSRect(
+            x: screen.frame.midX - model.notchSize.width / 2, y: screen.frame.maxY - model.notchSize.height,
+            width: model.notchSize.width, height: model.notchSize.height
+        )
+    }
+
+    /// Opens drop zones when files or text are dragged near the notch, and leaves
+    /// drop mode when the drag moves away. Only drags that put new content on the
+    /// drag pasteboard count, so moving windows or selecting text never triggers it.
+    private func trackDrag(at location: NSPoint) {
+        let pasteboard = NSPasteboard(name: .drag)
+        guard pasteboard.changeCount != dragChangeCount else { return }
+        let types = pasteboard.types ?? []
+        let kind: DragKind? = types.contains(.fileURL) ? .files
+            : (types.contains(.string) || types.contains(.URL)) ? .text : nil
+        guard let kind else { return }
+
+        // Text needs a closer approach: tab bars at the top of browsers start text-like drags.
+        let reach = kind == .files ? CGSize(width: 140, height: 90) : CGSize(width: 40, height: 30)
+        if model.drag == nil {
+            guard notchRect.insetBy(dx: -reach.width, dy: -reach.height).contains(location) else { return }
+            dragEndTask?.cancel()
+            dragEndTask = nil
+            openTask?.cancel()
+            closeTask?.cancel()
+            closeTask = nil
+            withAnimation(.notchOpen) {
+                model.drag = kind
+                model.open(tab: kind == .files ? .shelf : .clipboard)
+            }
+            haptic(force: true)
+        } else if !hoverRect().insetBy(dx: -60, dy: -60).contains(location) {
+            // Dragged away without dropping.
+            withAnimation(.notchClose) {
+                model.drag = nil
+                model.close()
+            }
+        }
+    }
+
+    /// The drop handler runs around mouse-up, so keep the zones a moment longer.
+    private func endDrag() {
+        guard model.drag != nil, dragEndTask == nil else { return }
+        dragEndTask = Task { [weak self] in
+            try? await Task.sleep(for: .milliseconds(400))
+            guard !Task.isCancelled, let self else { return }
+            self.dragEndTask = nil
+            if self.model.drag != nil {
+                withAnimation(.notchOpen) { self.model.drag = nil }
+            }
+            self.scheduleCloseIfOutside(NSEvent.mouseLocation)
+        }
     }
 
     private func haptic(force: Bool = false) {
@@ -203,6 +268,8 @@ final class NotchWindowController {
 
     private func evaluateHover(at location: NSPoint) {
         guard screen != nil else { return }
+        // A drag can end without us seeing its mouse-up (dropped onto another app).
+        if model.drag != nil && NSEvent.pressedMouseButtons & 1 == 0 { endDrag() }
         let inside = hoverRect().contains(location)
         if inside {
             closeTask?.cancel()
@@ -232,7 +299,7 @@ final class NotchWindowController {
     }
 
     private func scheduleCloseIfOutside(_ location: NSPoint) {
-        guard model.isOpen, !model.isPeeking, closeTask == nil,
+        guard model.isOpen, !model.isPeeking, model.drag == nil, closeTask == nil,
               !hoverRect().contains(location)
         else { return }
         closeTask = Task { [weak self] in
@@ -240,7 +307,7 @@ final class NotchWindowController {
             guard !Task.isCancelled, let self else { return }
             self.closeTask = nil
             // A peek (e.g. a permission request) may have opened during the delay.
-            if !self.hoverRect().contains(NSEvent.mouseLocation), !self.model.isPeeking {
+            if !self.hoverRect().contains(NSEvent.mouseLocation), self.model.drag == nil, !self.model.isPeeking {
                 withAnimation(.notchClose) { self.model.close() }
             }
         }
@@ -249,7 +316,7 @@ final class NotchWindowController {
     /// Accept mouse events only while the pointer is over the visible notch,
     /// so the rest of the transparent panel never blocks the apps below.
     private func updateMouseHandling() {
-        let interactive = interactiveScreenRect().insetBy(dx: -2, dy: -2).contains(NSEvent.mouseLocation)
+        let interactive = model.drag != nil || interactiveScreenRect().insetBy(dx: -2, dy: -2).contains(NSEvent.mouseLocation)
         if panel.ignoresMouseEvents == interactive { panel.ignoresMouseEvents = !interactive }
     }
 

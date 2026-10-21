@@ -1,1 +1,3 @@
 "NSAppleEventsUsageDescription" = "Claude Code oturumunun çalıştığı terminal sekmesini öne getirmek için.";
+"NSDownloadsFolderUsageDescription" = "Biten indirmeleri rafa koymak için.";
+"NSDesktopFolderUsageDescription" = "Yeni ekran görüntülerinin önizlemesini rafta göstermek için.";

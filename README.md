@@ -2,37 +2,75 @@
 
 <h1 align="center">NotchHub</h1>
 
-<p align="center">A small, focused Claude Code companion for the MacBook notch, with a pixel mascot.</p>
+<p align="center">Your MacBook notch, made useful: Claude Code, a shelf and a clipboard. Plus a pixel mascot.</p>
 
 <p align="center"><a href="https://github.com/bounjee/NotchHub/actions/workflows/test.yml"><img src="https://github.com/bounjee/NotchHub/actions/workflows/test.yml/badge.svg" alt="Tests"></a></p>
 
-<p align="center"><img src="docs/open-panel.png" width="560" alt="The open notch panel"></p>
+<p align="center"><img src="docs/open-panel.png" width="640" alt="The open notch panel"></p>
 
-NotchHub keeps an eye on your Claude Code sessions from the notch. It shows what each session is doing, tells you when one finishes, and lets you approve permission requests without switching to the terminal. A pixel mascot can sit on your desktop and nap until something happens. That's all it does.
+NotchHub does three things, and nothing else:
 
-## Features
+1. **Claude Code**: see what every session is doing and answer its permission requests.
+2. **Shelf**: a place for the files you're about to use.
+3. **Clipboard**: what you copied recently.
 
-- **Status in the notch.** A spinner while Claude works (with a count when several sessions run), an orange pulse when a permission is waiting, and a green check for finished work you haven't looked at yet. When nothing is going on, the notch stays plain.
-- **"✓ project done".** When a session finishes, its project name appears beside the notch for three seconds. If several finish together, they're announced one after another.
-- **Answer permission requests from the notch.** Choose Allow, Always (saves the rule Claude Code suggests) or Deny. The terminal prompt stays live, so whichever you answer first wins.
-- **Every session at a glance.** Hover over the notch (or click it) to see one line per session, labeled by its git repository. Sessions waiting on you come first. Click a row to jump to its terminal; Terminal and iTerm switch to the exact tab.
-- **Plan usage.** Shows your 5-hour and weekly Claude usage, with a heads-up at 80% and 95%.
-- **Desktop mascot.**
-  - Drag it anywhere; it remembers its spot.
-  - It naps when left alone.
-  - Click it for status, usage, and the latest finished session.
-  - Double-click it to open the panel.
-  - Right-click it for options, including hiding it.
-- **Stays out of the way.**
-  - Nothing is ever drawn over your app menus or menu bar icons.
-  - Sessions started with `claude -p` and short helper sessions are ignored.
-  - Idle CPU stays near 0%, because the animations run in Core Animation.
+Hover over the notch or click it to open the panel. Switch between the three with the tabs at the top.
 
-| Working | Done | Permission |
-| :-: | :-: | :-: |
-| <img src="docs/closed-working.png" width="260"> | <img src="docs/closed-done.png" width="260"> | <img src="docs/closed-permission.png" width="260"> |
+## Claude Code
 
-<p align="center"><img src="docs/mascot-awake.png" width="180" alt="Mascot"> <img src="docs/mascot-asleep.png" width="180" alt="Mascot asleep"></p>
+<p align="center"><img src="docs/states.png" width="640" alt="Notch states: working, done, copied, permission"></p>
+
+- **Status in the notch.**
+  - A spinner while Claude works, with a count when several sessions run.
+  - An orange pulse when a permission request is waiting.
+  - A green check for finished work you haven't looked at yet.
+  - When nothing is going on, the notch stays plain.
+- **"✓ project done".** When a session finishes, its project name shows beside the notch for three seconds.
+- **Answer permission requests from the notch.**
+  - Allow, Always (saves the rule Claude Code suggests) or Deny.
+  - The terminal prompt stays live, so whichever you answer first wins.
+- **Every session on one line.**
+  - Each session is labeled by its git repository, and sessions waiting on you come first.
+  - Click a row to jump to its terminal. Terminal and iTerm switch to the exact tab. Cursor and VS Code bring up the right window.
+- **Plan usage.** Your 5-hour and weekly Claude usage, with a heads-up at 80% and 95%.
+
+## Shelf
+
+<p align="center"><img src="docs/open-shelf.png" width="640" alt="The shelf"></p>
+
+- **Drag files onto the notch to keep them at hand.** Only their paths are stored; the files never move.
+- **New screenshots and downloads appear on their own.** They leave the shelf after a day.
+- **Drag a file onto the AirDrop zone to send it.** You can also AirDrop everything on the shelf in one go.
+- **Drag a file back out** to drop it anywhere. Double-click a file to open it.
+
+## Clipboard
+
+<p align="center"><img src="docs/open-clipboard.png" width="640" alt="The clipboard history"></p>
+
+- **The last 20 things you copied.** Click one to copy it again.
+- **Pin the ones you reuse.** Pinned items stay at the top.
+- **Smart previews.** Colors show a swatch and links show their site. JSON can be copied pretty-printed.
+- **Private by design.**
+  - The history lives in memory only and is never written to disk.
+  - Password managers' copies are skipped.
+
+## The mascot
+
+<p align="center"><img src="docs/mascot.png" width="560" alt="The desktop mascot, talking and napping"></p>
+
+A little Claude sits on your desktop.
+
+- **Click it** to hear the session status, your plan usage and what finished last, one at a time.
+- **Double-click it** to open the panel.
+- **Drag it anywhere.** It remembers its spot.
+- **Leave it alone** and it naps after 45 seconds.
+- **Right-click it** to hide it. You can also turn it off from the menu bar.
+
+## Stays out of the way
+
+- **Never covers your menus.** Nothing is drawn over app menus or menu bar icons.
+- **Ignores noise.** Sessions started with `claude -p` and short helper sessions don't show up.
+- **Light on CPU.** Idle CPU stays near 0%, because the animations run in Core Animation.
 
 ## Requirements
 
@@ -69,7 +107,7 @@ Claude Code ──(hook, JSON on stdin)──► notch-hook ──(Unix socket)�
 - **Status line.** Claude Code reports plan usage only to its status line, so the installer also adds a `statusLine` command that prints nothing. It skips this if you already have a status line of your own.
 - **Fails safe.** `notch-hook` always exits 0 and prints nothing unless you answer a permission request in the notch. If the app isn't running, Claude Code carries on as usual.
 - **Project names.** Session names come from the git repository; for worktrees, the main repository's name is used.
-- **Your data stays local.** Answers and usage are kept in memory. The only things written to disk are the last plan usage numbers and the mascot's position.
+- **Your data stays local.** Nothing leaves your Mac. Clipboard history and Claude's answers live in memory only. On disk: the last plan usage numbers, the shelf's file paths and the mascot's position.
 
 ## Uninstall
 
@@ -81,27 +119,46 @@ Choose **Remove Hooks** in the menu, quit NotchHub, then delete `/Applications/N
 swift test
 ```
 
-The tests cover the hook installer (with a temporary home folder), the session state machine, the socket server under load, and the real `notch-hook` binary end to end.
+The tests cover:
+
+- the hook installer, using a temporary home folder
+- the session state machine
+- the socket server under load
+- the real `notch-hook` binary, end to end
+- the shelf, the clipboard history and download detection
 
 ```bash
 swift build && .build/debug/NotchHub --snapshot /tmp/notchhub
 ```
 
-This renders every notch state and the mascot to PNG files, using sample sessions. The screenshots above were made this way.
+This renders the notch, the three tabs and the mascot to PNG files, using sample data. The screenshots above were made this way.
 
 The app icon is drawn by `scripts/make-icon.swift`. The UI is in English, plus Turkish in `Resources/tr.lproj`; more translations are welcome.
 
 ## Türkçe
 
-NotchHub, MacBook çentiğinde Claude Code oturumlarını izleyen küçük bir yardımcı:
+NotchHub, MacBook çentiğini işe yarar hale getirir. Üç şey yapar, fazlasını değil:
 
-- **Çentik durumu:** çalışırken yükleniyor göstergesi, izin beklerken turuncu nokta, bitince "✓ proje bitti".
-- **İzin onayı:** izin isteklerine çentikten İzin ver / Her zaman / Reddet ile cevap verebilirsin.
-- **Oturum listesi:** her oturum git deposunun adıyla görünür; satıra tıklayınca terminaline gidilir.
-- **Plan kullanımı:** 5 saatlik ve haftalık limit gösterilir.
-- **Masaüstü maskotu:** istediğin yere sürüklenir, dokunulmayınca uyur, tıklayınca bilgi verir, sağ tıkta menü açar.
+1. **Claude Code:** oturumların ne yaptığını gösterir.
+   - Çalışırken yükleniyor göstergesi, izin beklerken turuncu nokta, bitince "✓ proje bitti" çıkar.
+   - İzin isteklerine çentikten İzin ver / Her zaman / Reddet ile cevap verirsin.
+   - Satıra tıklayınca oturumun terminaline gidersin.
+   - 5 saatlik ve haftalık plan kullanımını gösterir.
+2. **Raf:** dosyaları çentiğe sürükle, el altında dursun.
+   - Yeni ekran görüntüleri ve indirilenler rafa kendiliğinden gelir, bir gün sonra düşer.
+   - AirDrop alanına bırakınca dosya gönderilir.
+3. **Pano:** kopyaladığın son 20 metin burada.
+   - Sabitleyebilir, tıklayıp tekrar kopyalayabilirsin.
+   - Geçmiş sadece bellekte tutulur.
 
-Kurulum için yukarıdaki komutları çalıştır, sonra menü çubuğundaki simgeden **Hook'ları kur**'u seç. Sistem dili Türkçe ise arayüz Türkçe açılır.
+Bir de masaüstünde küçük bir maskot var:
+
+- İstediğin yere sürüklersin.
+- Dokunulmayınca uyur.
+- Tıklayınca durumu söyler.
+- Sağ tıklayınca menü açılır.
+
+Kurulum için yukarıdaki komutları çalıştır. Sonra menü çubuğundaki simgeden **Hook'ları kur**'u seç. Sistem dili Türkçe ise arayüz Türkçe açılır.
 
 ## License
 

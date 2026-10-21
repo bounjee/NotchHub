@@ -73,3 +73,49 @@
 "Could not change Open at Login" = "Girişte açma ayarlanamadı";
 "~/.claude/settings.json is not valid JSON. It was left untouched." = "~/.claude/settings.json geçerli bir JSON değil. Dosyaya dokunulmadı.";
 "%@ was not found. Copy NotchHub to /Applications and try again." = "%@ bulunamadı. NotchHub'ı /Applications klasörüne kopyalayıp tekrar dene.";
+
+/* Tabs */
+"Shelf" = "Raf";
+"Clipboard" = "Pano";
+
+/* Compact activities */
+"Copied" = "Kopyalandı";
+"Screenshot" = "Ekran görüntüsü";
+"on the shelf" = "rafta";
+
+/* Drop zones */
+"Add to Shelf" = "Rafa ekle";
+"Keeps the path, never copies the file" = "Yolu saklanır, dosya kopyalanmaz";
+"Send to nearby devices" = "Yakındaki cihazlara gönder";
+"Save to Clipboard" = "Panoya kaydet";
+"Added to the history, ready to paste" = "Geçmişe eklenir, yapıştırmaya hazır";
+
+/* Shelf */
+"The shelf is empty" = "Raf boş";
+"Drag files onto the notch. Only their paths are kept; files are never copied." = "Dosyaları çentiğe sürükle. Sadece yolları saklanır, dosyalar kopyalanmaz.";
+"^[%lld item](inflect: true) · double-click to open" = "%lld öğe · açmak için çift tıkla";
+"%lld selected" = "%lld seçili";
+"AirDrop All" = "Tümünü AirDrop'la";
+"Show in Finder" = "Finder'da göster";
+"Remove" = "Kaldır";
+"Clear All" = "Tümünü temizle";
+"Screenshot · leaves the shelf after a day" = "Ekran görüntüsü · bir gün sonra raftan düşer";
+"Download · leaves the shelf after a day" = "İndirilen dosya · bir gün sonra raftan düşer";
+"Remove from Shelf" = "Raftan kaldır";
+"Open" = "Aç";
+
+/* Clipboard */
+"Clipboard access is off. Allow NotchHub to read the clipboard in System Settings." = "Pano erişimi kapalı. Sistem Ayarları'nda NotchHub'ın panoyu okumasına izin ver.";
+"Open Settings" = "Ayarları aç";
+"No clipboard history" = "Pano geçmişi boş";
+"Text you copy shows up here. The history is kept in memory only." = "Kopyaladığın metinler burada görünür. Geçmiş sadece bellekte tutulur.";
+"^[%lld item](inflect: true) · in memory only · click to copy" = "%lld öğe · sadece bellekte · kopyalamak için tıkla";
+"Clear Unpinned" = "Sabitlenmemişleri temizle";
+"Clear" = "Temizle";
+"Open in Browser" = "Tarayıcıda aç";
+"Copy Formatted" = "Biçimlendirip kopyala";
+"Unpin" = "Sabitlemeyi kaldır";
+"Pin" = "Sabitle";
+"Delete" = "Sil";
+"now" = "şimdi";
+"Click to copy" = "Kopyalamak için tıkla";

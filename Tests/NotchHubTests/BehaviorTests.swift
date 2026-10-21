@@ -16,7 +16,14 @@ private func bash(_ command: String, id: String? = nil) -> [String: Any] {
 }
 
 @MainActor
-private func makeModel() -> NotchModel { NotchModel(claude: ClaudeStore()) }
+func makeModel() -> NotchModel {
+    let dir = FileManager.default.temporaryDirectory.appendingPathComponent("model-\(UUID().uuidString)")
+    return NotchModel(
+        claude: ClaudeStore(),
+        shelf: Shelf(storeURL: dir.appendingPathComponent("shelf.json")),
+        clipboard: ClipboardHistory(pasteboard: NSPasteboard(name: .init("notchhub-test-\(UUID())")))
+    )
+}
 
 @MainActor @Suite struct NotchModelTests {
     @Test func usageWarningIsACompactActivity() {
