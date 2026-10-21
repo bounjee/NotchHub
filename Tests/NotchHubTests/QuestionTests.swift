@@ -59,6 +59,28 @@ import Testing
         #expect(peeks.last == .claudeDone("app"))
     }
 
+    @Test func aQuestionInTheAppsWrapUpBoxWaitsForTheUser() {
+        let store = ClaudeStore()
+        var peeks: [PeekReason] = []
+        store.onPeek = { peeks.append($0) }
+        store.handle(event("UserPromptSubmit"))
+        store.handle(event("PreToolUse", ["tool_name": "Bash", "tool_input": ["command": "swift test"], "tool_use_id": "b"]))
+        store.handle(event("PreToolUse", ["tool_name": "mcp__ccd_turn__wrap_up", "tool_use_id": "w",
+                                          "tool_input": ["recap": "Tests pass.", "ask": "Shall I push it?"]]))
+        store.handle(event("Stop", ["background_tasks": [], "last_assistant_message": "All tests pass and the app is installed."]))
+        #expect(store.sessions["s1"]?.status == .waitingForUser)
+        #expect(store.sessions["s1"]?.currentTool == "Shall I push it?")
+        #expect(peeks == [.question("app")])
+
+        // The next turn starts clean: a recap without a question finishes normally.
+        store.handle(event("UserPromptSubmit"))
+        store.handle(event("PreToolUse", ["tool_name": "Bash", "tool_input": ["command": "git push"], "tool_use_id": "p"]))
+        store.handle(event("PreToolUse", ["tool_name": "mcp__ccd_turn__wrap_up", "tool_use_id": "w2", "tool_input": ["recap": "Pushed."]]))
+        store.handle(event("Stop", ["background_tasks": [], "last_assistant_message": "Pushed."]))
+        #expect(store.sessions["s1"]?.status == .done)
+        #expect(store.pendingAsks.isEmpty)
+    }
+
     @Test func detectsQuestions() {
         #expect(ClaudeStore.asksQuestion("Which one should we use?"))
         #expect(ClaudeStore.asksQuestion("Done.\n\n**Want me to push it?**\n"))

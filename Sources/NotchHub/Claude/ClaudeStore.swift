@@ -111,6 +111,8 @@ final class ClaudeStore {
 
     /// Recent PreToolUse calls per session, used to find the `tool_use_id` of a permission request.
     private(set) var recentToolUses: [String: [(name: String, inputKey: String?, id: String)]] = [:]
+    /// Questions asked in the Claude app's wrap-up box this turn, per session; the turn ends on them.
+    private(set) var pendingAsks: [String: String] = [:]
     /// Tool calls that already finished; their ids must never be given to a new request.
     private var finishedToolUseIDs: [String] = []
     /// Sessions run by `claude -p`, with their last event; their events are ignored.
@@ -215,6 +217,7 @@ final class ClaudeStore {
 
         case "UserPromptSubmit":
             resolvePending(in: sid, with: .none)
+            pendingAsks[sid] = nil
             update(sid, event, now) { $0.status = .working; $0.currentTool = nil }
 
         case "PreToolUse":
@@ -231,6 +234,7 @@ final class ClaudeStore {
                     pending[index].toolUseID = id
                 }
             }
+            if let question = event.askedQuestion { pendingAsks[sid] = question }
             if let name = event.toolName, Self.questionTools.contains(name) {
                 askUser(sid, event, now)
                 return
@@ -287,10 +291,11 @@ final class ClaudeStore {
             resolvePending(in: sid, with: .none)
             let worked = sessions[sid]?.didRealWork(at: now) ?? false
             // A turn that ends on a question is waiting for the user, not done.
-            let asks = !event.hasBackgroundTasks && Self.asksQuestion(event.lastAssistantMessage ?? "")
+            let boxQuestion = pendingAsks.removeValue(forKey: sid)
+            let asks = !event.hasBackgroundTasks && (boxQuestion != nil || Self.asksQuestion(event.lastAssistantMessage ?? ""))
             update(sid, event, now) {
                 $0.status = event.hasBackgroundTasks ? .working : asks ? .waitingForUser : .done
-                $0.currentTool = nil
+                $0.currentTool = asks ? boxQuestion : nil
                 if let message = event.lastAssistantMessage, !message.isEmpty { $0.lastMessage = message }
                 if !event.hasBackgroundTasks, worked || asks { $0.unseen = true }
             }
@@ -310,6 +315,7 @@ final class ClaudeStore {
         case "SessionEnd":
             resolvePending(in: sid, with: .none)
             recentToolUses[sid] = nil
+            pendingAsks[sid] = nil
             // `claude -p` ends right after Stop; keep its answer visible until it expires,
             // but let helper sessions that never really worked disappear.
             if let session = sessions[sid], session.status == .done, session.didRealWork(at: session.statusSince) {
@@ -392,6 +398,7 @@ final class ClaudeStore {
         }
         // Sessions killed without SessionEnd leave bookkeeping behind; drop it with them.
         recentToolUses = recentToolUses.filter { sessions[$0.key] != nil }
+        pendingAsks = pendingAsks.filter { sessions[$0.key] != nil }
         headlessSessions = headlessSessions.filter { now.timeIntervalSince($0.value) < Self.staleLifetime }
     }
 

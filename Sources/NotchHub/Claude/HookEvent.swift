@@ -17,6 +17,8 @@ struct HookEvent: Sendable {
     var toolName: String?
     var toolInputKey: String?
     var toolSummary: String?
+    /// A question the turn ends with, asked through the Claude app's wrap-up box rather than in the reply.
+    var askedQuestion: String?
     var toolUseID: String?
     var lastAssistantMessage: String?
     var hasBackgroundTasks = false
@@ -59,6 +61,10 @@ struct HookEvent: Sendable {
                 ? (try? JSONSerialization.data(withJSONObject: input, options: [.sortedKeys])).flatMap { String(data: $0, encoding: .utf8) }
                 : String(describing: input)
             if let toolName { toolSummary = Self.summary(tool: toolName, input: input as? [String: Any] ?? [:]) }
+            if toolName?.hasSuffix("__wrap_up") == true, let ask = (input as? [String: Any])?["ask"] as? String,
+               !ask.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
+                askedQuestion = ask
+            }
         }
         lastAssistantMessage = object["last_assistant_message"] as? String
         if let tasks = object["background_tasks"] as? [Any] { hasBackgroundTasks = !tasks.isEmpty }
