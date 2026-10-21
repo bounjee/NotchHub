@@ -133,7 +133,7 @@ swift build && .build/debug/NotchHub --snapshot /tmp/notchhub
 
 This renders the notch, the three tabs and the mascot to PNG files, using sample data. The screenshots above were made this way.
 
-The app icon is drawn by `scripts/make-icon.swift`. The UI is in English, plus Turkish in `Resources/tr.lproj`; more translations are welcome.
+The app icon is drawn by `scripts/make-icon.swift`; `./scripts/make-icon.sh` rebuilds `Resources/AppIcon.icns` and `docs/icon.png` from it. The UI is in English, plus Turkish in `Resources/tr.lproj`; more translations are welcome.
 
 ## Türkçe
 

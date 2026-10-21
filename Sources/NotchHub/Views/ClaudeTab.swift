@@ -193,7 +193,7 @@ private struct SessionRow: View {
         case .working, .needsApproval:
             return session.currentTool ?? String(localized: "Thinking…")
         case .waitingForUser:
-            return session.lastMessage.map(Self.firstLine) ?? String(localized: "Waiting for your reply")
+            return session.currentTool ?? session.lastMessage.map(Self.lastLine) ?? String(localized: "Waiting for your reply")
         case .done, .error:
             return session.lastMessage.map(Self.firstLine) ?? session.status.title
         case .idle:
@@ -210,6 +210,11 @@ private struct SessionRow: View {
             .replacingOccurrences(of: #"^#+\s*|^[-*]\s+"#, with: "", options: .regularExpression)
             .replacingOccurrences(of: "**", with: "")
             .replacingOccurrences(of: "`", with: "")
+    }
+
+    /// The question a reply ends with, without its markup.
+    static func lastLine(_ text: String) -> String {
+        firstLine(text.components(separatedBy: .newlines).last { !$0.trimmingCharacters(in: .whitespaces).isEmpty && !$0.hasPrefix("```") } ?? text)
     }
 
     private func iconButton(_ symbol: String, help: String, tint: Color? = nil, action: @escaping () -> Void) -> some View {

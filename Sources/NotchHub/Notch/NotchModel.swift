@@ -31,6 +31,8 @@ enum PeekReason: Equatable {
     case summoned
     /// A session finished: "✓ <project> done" right of the notch.
     case claudeDone(String)
+    /// A session asked something and waits for the answer: "? <project> asks you".
+    case question(String)
     /// Text copied in another app.
     case copied(String)
     /// A new screenshot (its path) or download (its name) landed on the shelf.
@@ -41,10 +43,19 @@ enum PeekReason: Equatable {
 
     var opensPanel: Bool { self == .permission || self == .summoned }
 
+    /// Announcements about one session; several in a row are shown one after another.
+    var isAnnouncement: Bool {
+        switch self {
+        case .claudeDone, .question: true
+        default: false
+        }
+    }
+
     var duration: Duration {
         switch self {
         case .copied: .milliseconds(1600)
         case .claudeDone: .seconds(3)
+        case .question: .seconds(4)
         case .screenshot, .downloaded: .milliseconds(3500)
         case .permission, .usage: .seconds(4)
         case .summoned: .seconds(6)
@@ -55,8 +66,8 @@ enum PeekReason: Equatable {
     /// app menus reach the notch there.
     var wingWidth: CGFloat {
         switch self {
-        case .claudeDone(let label):
-            min(240, 92 + (label as NSString).size(withAttributes: [.font: NSFont.systemFont(ofSize: 11.5, weight: .semibold)]).width)
+        case .claudeDone(let label), .question(let label):
+            min(250, 102 + (label as NSString).size(withAttributes: [.font: NSFont.systemFont(ofSize: 11.5, weight: .semibold)]).width)
         case .copied, .downloaded: 190
         case .screenshot: 200
         case .usage: 170
@@ -147,9 +158,9 @@ final class NotchModel {
         if case .claudeDone(let label) = reason {
             claudeCelebration += 1
             lastFinished = label
-            // Several sessions can finish together: announce each one in turn.
-            if case .claudeDone = peek { queuedPeeks.append(reason); return }
         }
+        // Several sessions can finish or ask together: announce each one in turn.
+        if reason.isAnnouncement, peek?.isAnnouncement == true { queuedPeeks.append(reason); return }
         guard !hovering, drag == nil else { return }
         if presentation == .open && peek == nil { return }
         if let current = peek, current.opensPanel, !reason.opensPanel { return }

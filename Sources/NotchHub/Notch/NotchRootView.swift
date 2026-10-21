@@ -283,6 +283,10 @@ private struct CompactActivity: View {
                 icon("checkmark.circle.fill", .green)
                 title(label)
                 detail(String(localized: "done")).fixedSize()
+            case .question(let label):
+                icon("questionmark.bubble.fill", .blue)
+                title(label)
+                detail(String(localized: "asks you")).fixedSize()
             case .copied(let text):
                 icon("checkmark.circle.fill", .green)
                 title(String(localized: "Copied"))

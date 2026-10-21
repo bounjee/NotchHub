@@ -119,3 +119,8 @@
 "Delete" = "Sil";
 "now" = "şimdi";
 "Click to copy" = "Kopyalamak için tıkla";
+
+/* Questions */
+"asks you" = "soru soruyor";
+"%@ has a question ❓" = "%@ bir şey soruyor ❓";
+"Plan ready for your review" = "Plan onayını bekliyor";

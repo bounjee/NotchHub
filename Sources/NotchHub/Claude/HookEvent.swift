@@ -92,6 +92,11 @@ struct HookEvent: Sendable {
 
     /// Short human-readable description of a tool call, e.g. the Bash command or edited file.
     static func summary(tool: String, input: [String: Any]) -> String {
+        if tool == "AskUserQuestion" {
+            let questions = input["questions"] as? [[String: Any]] ?? []
+            return (questions.first?["question"] as? String) ?? ""
+        }
+        if tool == "ExitPlanMode" { return "" }
         let keys: [String] = switch tool {
         case "Bash": ["command"]
         case "Edit", "MultiEdit", "Write", "Read", "NotebookEdit": ["file_path", "notebook_path"]

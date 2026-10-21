@@ -10,7 +10,7 @@ APP="dist/NotchHub.app"
 rm -rf "$APP"
 mkdir -p "$APP/Contents/MacOS" "$APP/Contents/Resources"
 cp "$BIN/NotchHub" "$BIN/notch-hook" "$APP/Contents/MacOS/"
-# Regenerate with: swift scripts/make-icon.swift, then iconutil (see README).
+# Regenerate with: ./scripts/make-icon.sh
 cp Resources/AppIcon.icns "$APP/Contents/Resources/"
 # English is the development language (the keys); other languages live in <lang>.lproj.
 for lproj in Resources/*.lproj; do cp -R "$lproj" "$APP/Contents/Resources/"; done

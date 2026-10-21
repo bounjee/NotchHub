@@ -222,6 +222,10 @@ final class ClaudeStore {
                     pending[index].toolUseID = id
                 }
             }
+            if let name = event.toolName, Self.questionTools.contains(name) {
+                askUser(sid, event, now)
+                return
+            }
             update(sid, event, now) {
                 $0.status = self.hasPending(sid) ? .needsApproval : .working
                 $0.currentTool = Self.toolLine(event)
@@ -230,6 +234,12 @@ final class ClaudeStore {
         case "PermissionRequest":
             guard let responder else { return }
             let name = event.toolName ?? "?"
+            // A question or a plan needs a real answer, which only the terminal can give.
+            if Self.questionTools.contains(name) {
+                responder.reply(Self.replyLine(.none, suggestions: nil))
+                if sessions[sid]?.status != .waitingForUser { askUser(sid, event, now) }
+                return
+            }
             let taken = Set(pending.compactMap(\.toolUseID))
             let match = recentToolUses[sid]?.last {
                 $0.name == name && $0.inputKey == event.toolInputKey && !taken.contains($0.id) && !finishedToolUseIDs.contains($0.id)
@@ -267,13 +277,17 @@ final class ClaudeStore {
         case "Stop":
             resolvePending(in: sid, with: .none)
             let worked = sessions[sid]?.didRealWork(at: now) ?? false
+            // A turn that ends on a question is waiting for the user, not done.
+            let asks = !event.hasBackgroundTasks && Self.asksQuestion(event.lastAssistantMessage ?? "")
             update(sid, event, now) {
-                $0.status = event.hasBackgroundTasks ? .working : .done
+                $0.status = event.hasBackgroundTasks ? .working : asks ? .waitingForUser : .done
                 $0.currentTool = nil
                 if let message = event.lastAssistantMessage, !message.isEmpty { $0.lastMessage = message }
-                if !event.hasBackgroundTasks, worked { $0.unseen = true }
+                if !event.hasBackgroundTasks, worked || asks { $0.unseen = true }
             }
-            if !event.hasBackgroundTasks, worked { onPeek?(.claudeDone(sessions[sid]?.label ?? "Claude")) }
+            let label = sessions[sid]?.label ?? "Claude"
+            if asks { onPeek?(.question(label)) }
+            else if !event.hasBackgroundTasks, worked { onPeek?(.claudeDone(label)) }
 
         case "StopFailure":
             resolvePending(in: sid, with: .none)
@@ -396,6 +410,34 @@ final class ClaudeStore {
         var data = (try? JSONSerialization.data(withJSONObject: object)) ?? Data(#"{"decision":"none"}"#.utf8)
         data.append(0x0A)
         return data
+    }
+
+    /// Tools that stop and wait for the user's answer in the terminal.
+    nonisolated static let questionTools: Set<String> = ["AskUserQuestion", "ExitPlanMode"]
+
+    /// Whether a reply ends by asking the user something: its last line ends with a question mark.
+    nonisolated static func asksQuestion(_ message: String) -> Bool {
+        // Prose only: a code block's last line is not the reply asking anything.
+        var inCode = false
+        var prose: [String] = []
+        for line in message.components(separatedBy: .newlines).map({ $0.trimmingCharacters(in: .whitespaces) }) {
+            if line.hasPrefix("```") { inCode.toggle(); continue }
+            if !inCode, !line.isEmpty { prose.append(line) }
+        }
+        guard let last = prose.last else { return false }
+        let stripped = last.trimmingCharacters(in: CharacterSet(charactersIn: "*_)\"'”’`. ").union(.whitespaces))
+        return stripped.hasSuffix("?") || stripped.hasSuffix("？")
+    }
+
+    /// Claude asked a question (or showed a plan) and waits for the answer in the terminal.
+    private func askUser(_ sid: String, _ event: HookEvent, _ now: Date) {
+        let question = event.toolName == "ExitPlanMode" ? String(localized: "Plan ready for your review") : event.toolSummary
+        update(sid, event, now) {
+            $0.status = .waitingForUser
+            $0.currentTool = question.flatMap { $0.isEmpty ? nil : $0 }
+            $0.unseen = true
+        }
+        onPeek?(.question(sessions[sid]?.label ?? "Claude"))
     }
 
     nonisolated static func toolLine(_ event: HookEvent) -> String? {

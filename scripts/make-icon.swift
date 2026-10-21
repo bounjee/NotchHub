@@ -1,10 +1,13 @@
-// Draws the NotchHub app icon: Claude's orange, a notch panel hanging from the top,
-// and Claude Code's pixel mascot inside it.
-// Usage: swift scripts/make-icon.swift <output.png>
+// Draws the NotchHub app icon: Claude's orange spark on black, under a small notch.
+// Usage: swift scripts/make-icon.swift <output.png> (scripts/make-icon.sh builds the .icns from it)
 import AppKit
 
 let size: CGFloat = 1024
 let output = CommandLine.arguments.count > 1 ? CommandLine.arguments[1] : "AppIcon-1024.png"
+
+func rgb(_ r: CGFloat, _ g: CGFloat, _ b: CGFloat, _ a: CGFloat = 1) -> CGColor {
+    NSColor(srgbRed: r, green: g, blue: b, alpha: a).cgColor
+}
 
 let image = NSImage(size: NSSize(width: size, height: size), flipped: true) { _ in
     guard let context = NSGraphicsContext.current?.cgContext else { return false }
@@ -15,9 +18,9 @@ let image = NSImage(size: NSSize(width: size, height: size), flipped: true) { _ 
 
     // Soft drop shadow, as on system icons.
     context.saveGState()
-    context.setShadow(offset: CGSize(width: 0, height: 10), blur: 24, color: NSColor.black.withAlphaComponent(0.3).cgColor)
+    context.setShadow(offset: CGSize(width: 0, height: 10), blur: 24, color: rgb(0, 0, 0, 0.3))
     context.addPath(squircle)
-    context.setFillColor(NSColor.black.cgColor)
+    context.setFillColor(rgb(0.07, 0.07, 0.08))
     context.fillPath()
     context.restoreGState()
 
@@ -25,70 +28,36 @@ let image = NSImage(size: NSSize(width: size, height: size), flipped: true) { _ 
     context.addPath(squircle)
     context.clip()
 
-    // Background: Claude orange, lighter at the top.
-    let colors = [
-        NSColor(srgbRed: 0.93, green: 0.58, blue: 0.45, alpha: 1).cgColor,
-        NSColor(srgbRed: 0.80, green: 0.38, blue: 0.24, alpha: 1).cgColor,
-    ] as CFArray
-    let gradient = CGGradient(colorsSpace: CGColorSpace(name: CGColorSpace.sRGB), colors: colors, locations: [0, 1])!
-    context.drawLinearGradient(gradient, start: CGPoint(x: 0, y: body.minY), end: CGPoint(x: 0, y: body.maxY), options: [])
-
-    // Gentle top sheen on the background only.
-    let sheen = CGGradient(colorsSpace: CGColorSpace(name: CGColorSpace.sRGB), colors: [
-        NSColor.white.withAlphaComponent(0.18).cgColor, NSColor.white.withAlphaComponent(0).cgColor,
-    ] as CFArray, locations: [0, 1])!
-    context.drawLinearGradient(sheen, start: CGPoint(x: 0, y: body.minY), end: CGPoint(x: 0, y: body.midY), options: [])
-
-    // The notch panel: a narrow neck from the top edge that widens into a rounded panel.
-    let neckWidth: CGFloat = 290, neckHeight: CGFloat = 120
-    let panel = CGRect(x: body.midX - 330, y: body.minY + neckHeight, width: 660, height: 560)
-    let shape = CGMutablePath()
-    let neckLeft = body.midX - neckWidth / 2, neckRight = body.midX + neckWidth / 2
-    let flare: CGFloat = 40, shoulder: CGFloat = 80, bottom: CGFloat = 130
-    shape.move(to: CGPoint(x: neckLeft, y: body.minY - 2))
-    shape.addLine(to: CGPoint(x: neckLeft, y: panel.minY - flare))
-    shape.addQuadCurve(to: CGPoint(x: neckLeft - flare, y: panel.minY), control: CGPoint(x: neckLeft, y: panel.minY))
-    shape.addLine(to: CGPoint(x: panel.minX + shoulder, y: panel.minY))
-    shape.addQuadCurve(to: CGPoint(x: panel.minX, y: panel.minY + shoulder), control: CGPoint(x: panel.minX, y: panel.minY))
-    shape.addLine(to: CGPoint(x: panel.minX, y: panel.maxY - bottom))
-    shape.addQuadCurve(to: CGPoint(x: panel.minX + bottom, y: panel.maxY), control: CGPoint(x: panel.minX, y: panel.maxY))
-    shape.addLine(to: CGPoint(x: panel.maxX - bottom, y: panel.maxY))
-    shape.addQuadCurve(to: CGPoint(x: panel.maxX, y: panel.maxY - bottom), control: CGPoint(x: panel.maxX, y: panel.maxY))
-    shape.addLine(to: CGPoint(x: panel.maxX, y: panel.minY + shoulder))
-    shape.addQuadCurve(to: CGPoint(x: panel.maxX - shoulder, y: panel.minY), control: CGPoint(x: panel.maxX, y: panel.minY))
-    shape.addLine(to: CGPoint(x: neckRight + flare, y: panel.minY))
-    shape.addQuadCurve(to: CGPoint(x: neckRight, y: panel.minY - flare), control: CGPoint(x: neckRight, y: panel.minY))
-    shape.addLine(to: CGPoint(x: neckRight, y: body.minY - 2))
-    shape.closeSubpath()
-
-    context.saveGState()
-    context.setShadow(offset: CGSize(width: 0, height: 16), blur: 40, color: NSColor.black.withAlphaComponent(0.35).cgColor)
-    context.addPath(shape)
-    context.setFillColor(NSColor(white: 0.04, alpha: 1).cgColor)
+    // The notch: pure black on the near-black tile, hanging from the top edge.
+    let width: CGFloat = 300, depth: CGFloat = 96, radius: CGFloat = 44, ear = radius * 0.5
+    let left = body.midX - width / 2, right = body.midX + width / 2, top = body.minY - 2, bottom = body.minY + depth
+    let notch = CGMutablePath()
+    notch.move(to: CGPoint(x: left - ear, y: top))
+    notch.addQuadCurve(to: CGPoint(x: left, y: top + ear), control: CGPoint(x: left, y: top))
+    notch.addLine(to: CGPoint(x: left, y: bottom - radius))
+    notch.addQuadCurve(to: CGPoint(x: left + radius, y: bottom), control: CGPoint(x: left, y: bottom))
+    notch.addLine(to: CGPoint(x: right - radius, y: bottom))
+    notch.addQuadCurve(to: CGPoint(x: right, y: bottom - radius), control: CGPoint(x: right, y: bottom))
+    notch.addLine(to: CGPoint(x: right, y: top + ear))
+    notch.addQuadCurve(to: CGPoint(x: right + ear, y: top), control: CGPoint(x: right, y: top))
+    notch.closeSubpath()
+    context.addPath(notch)
+    context.setFillColor(rgb(0, 0, 0))
     context.fillPath()
-    context.restoreGState()
 
-    // Claude Code's mascot, in its terminal orange, inside the panel.
-    let rows = [
-        "...############...",
-        "...##.######.##...",
-        ".################.",
-        "...############...",
-        "....#.#....#.#....",
-    ]
-    let pixel: CGFloat = 30
-    let mascot = CGSize(width: 18 * pixel, height: 5 * pixel * 2)
-    let origin = CGPoint(x: panel.midX - mascot.width / 2, y: panel.midY - mascot.height / 2 + 10)
-    context.setFillColor(NSColor(srgbRed: 0.91, green: 0.53, blue: 0.39, alpha: 1).cgColor)
-    for (y, row) in rows.enumerated() {
-        for (x, cell) in row.enumerated() where cell == "#" {
-            context.fill(CGRect(x: origin.x + CGFloat(x) * pixel, y: origin.y + CGFloat(y) * pixel * 2, width: pixel, height: pixel * 2))
-        }
+    // Claude's spark: eight rounded rays of alternating length, flat orange.
+    let center = CGPoint(x: body.midX, y: body.midY + 40)
+    let reach: CGFloat = 260
+    context.setStrokeColor(rgb(0.85, 0.47, 0.34))
+    context.setLineWidth(74)
+    context.setLineCap(.round)
+    for ray in 0..<8 {
+        let angle = CGFloat(ray) * .pi / 4 + .pi / 8
+        let length = ray % 2 == 0 ? reach : reach * 0.78
+        context.move(to: center)
+        context.addLine(to: CGPoint(x: center.x + cos(angle) * length, y: center.y + sin(angle) * length))
     }
-
-    // A little status light on the panel, like the notch showing Claude at work.
-    context.setFillColor(NSColor(srgbRed: 0.42, green: 0.85, blue: 0.47, alpha: 1).cgColor)
-    context.fillEllipse(in: CGRect(x: panel.maxX - 104, y: panel.minY + 52, width: 34, height: 34))
+    context.strokePath()
 
     context.restoreGState()
     return true
