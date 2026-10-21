@@ -4,6 +4,7 @@ MacBook çentiğini Dynamic Island benzeri bir panele çeviren kişisel macOS uy
 
 - **Claude:** Claude Code oturum durumu, Claude Code'un piksel maskotuyla: çalışırken yürür, izin isterken kollarını kaldırır, bitince zıplar. Bitince kısa önizleme + "Tamamını göster", izin isteklerini çentikten onaylama (İzin ver / Her zaman / Reddet), oturumun terminal sekmesine atlama (Terminal ve iTerm'de doğru sekme), 5 saatlik ve haftalık plan kullanımı (statusLine üzerinden).
 - **Sürükle-bırak:** Dosya çentiğe yaklaşınca panel iki bölgeyle açılır: *Rafa ekle* ve *AirDrop*. Metin ya da bağlantı sürüklenirse *Panoya kaydet*.
+- **Masaüstü maskotu:** Claude Code'un piksel maskotu masaüstünde durur; fareyle istediğin yere taşınır (konumu hatırlanır), dokunulmayınca uyur (z z z), tıklayınca konuşur (Claude durumu, limit, küçük laflar), çift tıklayınca çentik paneli açılır. İzin gerekince uyanıp el sallar, iş bitince zıplar. Menüden açılıp kapatılır.
 - **Otomatik raf:** Yeni ekran görüntüleri ve bitmiş indirmeler rafa düşer, 1 gün sonra kendiliğinden kalkar.
 - **Raf:** Sadece yollar saklanır. Resim/PDF/video için QuickLook önizlemesi, çift tıkla aç, dışarı sürükle, AirDrop, Finder'da göster.
 - **Pano:** Son 20 metin + sabitlenenler, sadece bellekte. Renk kodu, bağlantı, JSON ve kod için akıllı önizleme. Başka uygulamada kopyalayınca çentikte "Kopyalandı" görünür. Şifre yöneticisi öğeleri ve Finder dosya kopyaları kaydedilmez.

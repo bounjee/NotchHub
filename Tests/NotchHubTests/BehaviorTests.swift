@@ -53,6 +53,14 @@ private func makeModel() -> NotchModel {
         #expect(model.presentation == .closed)
     }
 
+    @Test func summonedPanelLingersForThePointer() {
+        let model = makeModel()
+        model.showPeek(.summoned, hovering: false)
+        #expect(model.presentation == .open)
+        #expect(model.isPeeking)
+        #expect(model.tab == .claude)
+    }
+
     @Test func claudeFinishingOnlyMakesTheMascotHop() {
         let model = makeModel()
         model.showPeek(.claudeDone("dolphydesk"), hovering: false)

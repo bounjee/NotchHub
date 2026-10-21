@@ -26,6 +26,8 @@ enum NotchTab: String, CaseIterable, Identifiable {
 /// the panel (it needs an answer); everything else is a compact activity right of the notch.
 enum PeekReason: Equatable {
     case permission
+    /// Opened from somewhere else (the desktop mascot); stays a while for the pointer to arrive.
+    case summoned
     case claudeDone(String)
     case power, charged, lowBattery
     case copied(String)
@@ -34,7 +36,7 @@ enum PeekReason: Equatable {
     /// Five-hour plan usage reached this percentage.
     case usage(Int)
 
-    var opensPanel: Bool { self == .permission }
+    var opensPanel: Bool { self == .permission || self == .summoned }
 
     var duration: Duration {
         switch self {
@@ -42,6 +44,7 @@ enum PeekReason: Equatable {
         case .power, .charged, .claudeDone: .seconds(3)
         case .screenshot, .downloaded: .milliseconds(3500)
         case .lowBattery, .permission, .usage: .seconds(4)
+        case .summoned: .seconds(6)
         }
     }
 
@@ -53,7 +56,7 @@ enum PeekReason: Equatable {
         case .screenshot: 200
         case .power, .lowBattery, .charged: 150
         case .usage: 170
-        case .permission: 30
+        case .permission, .summoned: 30
         }
     }
 }

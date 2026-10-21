@@ -205,7 +205,7 @@ struct NotchRootView: View {
             HStack(spacing: 0) {
                 Color.clear.frame(width: model.notchSize.width + wings.left - topRadius)
                 if let status = model.claude.headlineStatus {
-                    ClawdView(status: status, celebration: model.claudeCelebration, pixel: 1.25)
+                    ClawdView(status: status, celebration: model.claudeCelebration, pixel: 1.25, fidgets: true)
                         .frame(width: wings.right - topRadius)
                         .padding(.top, 2)
                 }

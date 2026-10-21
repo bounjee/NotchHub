@@ -24,6 +24,10 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
     private let arrivals = FileArrivals()
     private lazy var model = NotchModel(claude: claude, shelf: shelf, clipboard: clipboard, battery: battery)
     private lazy var windowController = NotchWindowController(model: model)
+    private lazy var pet = DesktopPet(model: model) { [weak self] in
+        guard let self else { return }
+        withAnimation(.notchOpen) { self.model.showPeek(.summoned, hovering: false) }
+    }
     private var server: HubServer?
     private var statusItem: NSStatusItem?
     private var maintenanceTimer: Timer?
@@ -61,6 +65,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
             self.peek(kind == .screenshot ? .screenshot(url.path) : .downloaded(url.lastPathComponent))
         }
         arrivals.start()
+        if DesktopPet.isEnabled { pet.start() }
 
         let claude = claude
         let server = HubServer(
@@ -121,6 +126,10 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
             .target = self
         menu.addItem(.separator())
 
+        let petItem = menu.addItem(withTitle: "Masaüstü maskotu", action: #selector(togglePet), keyEquivalent: "")
+        petItem.target = self
+        petItem.state = pet.isRunning ? .on : .off
+
         let login = menu.addItem(withTitle: "Girişte başlat", action: #selector(toggleLoginItem), keyEquivalent: "")
         login.target = self
         login.state = SMAppService.mainApp.status == .enabled ? .on : .off
@@ -147,6 +156,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
             self.peek(kind == .screenshot ? .screenshot(url.path) : .downloaded(url.lastPathComponent))
         }
         arrivals.start()
+        if DesktopPet.isEnabled { pet.start() }
     }
 
     /// The bundled hook binary, so a build run from outside /Applications still installs a working path.
@@ -154,6 +164,16 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
         let bundled = Bundle.main.bundleURL.appendingPathComponent("Contents/MacOS/notch-hook").path
         return FileManager.default.isExecutableFile(atPath: bundled) && bundled.contains(HookInstaller.marker)
             ? bundled : HookInstaller.defaultHookPath
+    }
+
+    @objc private func togglePet() {
+        if pet.isRunning {
+            pet.stop()
+            DesktopPet.isEnabled = false
+        } else {
+            pet.start()
+            DesktopPet.isEnabled = true
+        }
     }
 
     @objc private func toggleLoginItem() {
