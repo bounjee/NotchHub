@@ -7,7 +7,7 @@ import SwiftUI
 ///     ▝▜█████▛▘
 ///       ▘▘ ▝▝
 enum Clawd {
-    enum Pose: CaseIterable { case normal, blink, armsUp, wave, asleep, typeLeft, typeRight, typeIdle, typeBlink }
+    enum Pose: CaseIterable { case normal, blink, armsUp, wave, asleep, typeLeft, typeRight, typeIdle }
 
     static let width = 18
     static let height = 5
@@ -27,7 +27,6 @@ enum Clawd {
         case .asleep: [middle, "...##_######_##...", body, middle, legs]
         // Typing poses draw from `typingGrid`; these rows are the body behind the laptop.
         case .typeLeft, .typeRight, .typeIdle: [middle, "...##.######.##...", body, middle, legs]
-        case .typeBlink: [middle, middle, body, middle, legs]
         }
     }
 
@@ -36,7 +35,7 @@ enum Clawd {
     /// come down onto the lid's edges one after the other. Same 18 × 10 footprint as the mascot.
     static func typingGrid(_ pose: Pose) -> [[Character]]? {
         let downLeft = pose == .typeLeft, downRight = pose == .typeRight
-        guard downLeft || downRight || pose == .typeIdle || pose == .typeBlink else { return nil }
+        guard downLeft || downRight || pose == .typeIdle else { return nil }
         var grid = rows(pose).flatMap { row in [Array(row), Array(row)] }
         for (down, columns) in [(downLeft, [1, 2]), (downRight, [15, 16])] where down {
             for x in columns { grid[4][x] = "."; grid[5][x] = "."; grid[6][x] = "#"; grid[7][x] = "#" }

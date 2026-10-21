@@ -391,9 +391,9 @@ final class DesktopPet {
         view.sprite.removeAnimation(forKey: "frames")
         switch model.claude.headlineStatus {
         case .working:
-            // Typing on its little laptop, one arm then the other, with a pause and a blink.
+            // Typing on its little laptop, one arm then the other, with a short pause; the eyes stay open.
             let taps: [(Clawd.Pose, CFTimeInterval)] = Array(repeating: [(.typeLeft, 0.22), (.typeRight, 0.22)], count: 4).flatMap { $0 }
-            view.sprite.loop(steps: taps + [(.typeIdle, 0.5), (.typeBlink, 0.12), (.typeIdle, 0.4)])
+            view.sprite.loop(steps: taps + [(.typeIdle, 0.8)])
         case .needsApproval:
             view.sprite.show(.armsUp)
             view.sprite.loop([.armsUp, .normal], duration: 0.6)

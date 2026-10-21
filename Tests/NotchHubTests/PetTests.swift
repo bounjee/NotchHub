@@ -82,7 +82,7 @@ import Testing
 
 @Suite struct TypingPoseTests {
     @Test func typingKeepsTheMascotsFootprintAndAlternatesArms() throws {
-        for pose in [Clawd.Pose.typeLeft, .typeRight, .typeIdle, .typeBlink] {
+        for pose in [Clawd.Pose.typeLeft, .typeRight, .typeIdle] {
             let grid = try #require(Clawd.typingGrid(pose))
             #expect(grid.count == Clawd.height * 2)
             #expect(grid.allSatisfy { $0.count == Clawd.width })
