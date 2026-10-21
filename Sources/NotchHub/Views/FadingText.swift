@@ -14,7 +14,9 @@ struct OneLine<Content: View>: View {
             .lineLimit(1)
             .fixedSize(horizontal: true, vertical: false)
             .onGeometryChange(for: CGFloat.self, of: \.size.width) { natural = $0 }
-            .frame(maxWidth: .infinity, alignment: .leading)
+            // minWidth 0: without it the frame passes the full text width on as its minimum,
+            // and one long line would widen the whole panel past the screen.
+            .frame(minWidth: 0, maxWidth: .infinity, alignment: .leading)
             .onGeometryChange(for: CGFloat.self, of: \.size.width) { available = $0 }
             .clipped()
             .mask {

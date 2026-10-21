@@ -145,12 +145,26 @@ nonisolated(unsafe) private let bash: [String: Any] = ["tool_name": "Bash", "too
         let start = Date()
         store.handle(event("Stop", ["background_tasks": []]), now: start)
         store.handle(event("UserPromptSubmit", session: "s2"), now: start)
-        store.removeExpiredSessions(now: start.addingTimeInterval(4 * 60))
+        store.removeExpiredSessions(now: start.addingTimeInterval(20 * 60))
         #expect(store.sessions.count == 2)
-        store.removeExpiredSessions(now: start.addingTimeInterval(6 * 60))
-        #expect(Array(store.sessions.keys) == ["s2"])
+        // The working one went quiet (closed terminal); the finished one stays listed for an hour.
         store.removeExpiredSessions(now: start.addingTimeInterval(31 * 60))
+        #expect(Array(store.sessions.keys) == ["s1"])
+        store.removeExpiredSessions(now: start.addingTimeInterval(61 * 60))
         #expect(store.sessions.isEmpty)
+    }
+
+    @Test func theDoneCheckFadesBeforeTheSessionLeaves() {
+        let start = Date()
+        store.handle(event("UserPromptSubmit"), now: start)
+        store.handle(event("PreToolUse", bash.merging(["tool_use_id": "t1"]) { $1 }), now: start)
+        store.handle(event("Stop", ["background_tasks": []]), now: start.addingTimeInterval(5))
+        #expect(store.indicator?.kind == .done)
+        store.removeExpiredSessions(now: start.addingTimeInterval(4 * 60))
+        #expect(store.indicator?.kind == .done)
+        store.removeExpiredSessions(now: start.addingTimeInterval(6 * 60))
+        #expect(store.indicator == nil)
+        #expect(store.sessions["s1"]?.status == .done)
     }
 
     @Test func killedSessionsLeaveNoBookkeeping() {

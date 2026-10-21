@@ -55,7 +55,7 @@ enum Snapshot {
 
         // Closed states.
         var states: [(String, String, NSImage)] = []
-        work("a", "web-app", tool: "Bash", input: ["command": "npm test -- --watch=false"])
+        work("a", "web-app", tool: "Bash", input: ["command": "npm test -- --watch=false --coverage --reporter=verbose src/routes src/models src/services src/utils"])
         work("b", "api", tool: "Edit", input: ["file_path": "/Users/me/code/api/src/routes/users.ts"])
         states.append(("Working", "Two sessions running", closedStrip()))
 

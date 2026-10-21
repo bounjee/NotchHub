@@ -104,7 +104,9 @@ final class ClaudeStore {
     /// Called when the panel should briefly open by itself.
     var onPeek: ((PeekReason) -> Void)?
 
-    static let doneLifetime: TimeInterval = 5 * 60
+    static let doneLifetime: TimeInterval = 60 * 60
+    /// How long the notch's green check for unseen finished work stays.
+    static let checkLifetime: TimeInterval = 5 * 60
     nonisolated static let minimumWork: TimeInterval = 4
     /// Sessions closed without SessionEnd (terminal window closed) stop sending events.
     static let staleLifetime: TimeInterval = 30 * 60
@@ -391,6 +393,11 @@ final class ClaudeStore {
 
     func removeExpiredSessions(now: Date = Date()) {
         defer { refreshHeadline() }
+        // The notch's check fades after a few minutes; the session stays listed for an hour.
+        for (id, session) in sessions where session.status == .done && session.unseen
+            && now.timeIntervalSince(session.statusSince) >= Self.checkLifetime {
+            sessions[id]?.unseen = false
+        }
         sessions = sessions.filter { _, session in
             if session.status == .done { return now.timeIntervalSince(session.statusSince) < Self.doneLifetime }
             if session.status == .needsApproval { return true }
