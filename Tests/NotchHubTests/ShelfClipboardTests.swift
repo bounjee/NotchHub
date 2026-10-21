@@ -61,7 +61,7 @@ private func hook(_ name: String, session: String = "s1") -> HookEvent {
         store.handle(hook("Notification", session: "c"))
         let waiting = HookEvent(json: Data(#"{"hook_event_name":"Notification","session_id":"b","notification_type":"elicitation_dialog"}"#.utf8))!
         store.handle(waiting)
-        #expect(ClaudeHeadline.summary(store.sortedSessions) == "1 waiting for you +1")
+        #expect(ClaudeHeadline.summary(store.sortedSessions) == "1 waiting for you · 1 more")
     }
 }
 

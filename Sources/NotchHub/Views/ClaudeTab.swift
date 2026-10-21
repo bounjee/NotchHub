@@ -17,7 +17,7 @@ struct ClaudeTab: View {
                             if store.hooksInstalled {
                                 Text("Run claude in a terminal and it shows up here.")
                             } else {
-                                Text("Install the hooks from the NotchHub menu in the menu bar.")
+                                Text("Connect Claude Code from the NotchHub menu in the menu bar.")
                             }
                         }
                         .font(.system(size: 11))
@@ -107,7 +107,7 @@ private struct PermissionCard: View {
                 Button("Deny") { answer(.deny) }
                     .buttonStyle(PillButtonStyle(kind: .secondary))
                 if request.suggestions != nil {
-                    Button("Always") { answer(.allowAlways) }
+                    Button("Always allow") { answer(.allowAlways) }
                         .buttonStyle(PillButtonStyle(kind: .secondary))
                         .help(String(localized: "Allow and save the rule Claude Code suggests"))
                 }
@@ -146,7 +146,7 @@ private struct SessionRow: View {
                     Text(verbatim: session.status.title).font(.system(size: 12)).foregroundStyle(session.status.tint).fixedSize()
                     if session.unseen {
                         Circle().fill(session.status.tint).frame(width: 5, height: 5)
-                            .help(String(localized: "Not looked at yet"))
+                            .help(String(localized: "Not seen yet"))
                     }
                 }
                 OneLine {
@@ -185,7 +185,7 @@ private struct SessionRow: View {
         .contentShape(RoundedRectangle(cornerRadius: 12))
         .onTapGesture { jump?() }
         .onHover { isHovering in withAnimation(.snappy(duration: 0.15)) { hovering = isHovering } }
-        .help(isFinished ? (session.lastMessage ?? "") : (jump == nil ? "" : String(localized: "Click to go to its terminal")))
+        .help(isFinished ? (session.lastMessage ?? "") : (jump == nil ? "" : String(localized: "Click to open its terminal")))
     }
 
     /// The second line: the current tool while working, the answer's first line when finished.

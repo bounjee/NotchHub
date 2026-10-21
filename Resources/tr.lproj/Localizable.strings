@@ -11,19 +11,15 @@
 /* Panel */
 "No active Claude Code sessions" = "Aktif Claude Code oturumu yok";
 "Run claude in a terminal and it shows up here." = "Bir terminalde claude çalıştır, burada görünür.";
-"Install the hooks from the NotchHub menu in the menu bar." = "Menü çubuğundaki NotchHub menüsünden hook'ları kur.";
 "Permission needed" = "İzin gerekiyor";
 "Answer in terminal" = "Terminalde cevapla";
 "You can also answer in the terminal" = "Terminalden de cevaplayabilirsin";
 "Deny" = "Reddet";
-"Always" = "Her zaman";
 "Allow" = "İzin ver";
 "Allow and save the rule Claude Code suggests" = "İzin ver ve Claude Code'un önerdiği kuralı kaydet";
-"Not looked at yet" = "Henüz bakmadın";
 "Copy answer" = "Cevabı kopyala";
 "Go to terminal" = "Terminale git";
 "Remove from list" = "Listeden kaldır";
-"Click to go to its terminal" = "Tıkla: terminaline git";
 "Thinking…" = "Düşünüyor…";
 "Waiting for your reply" = "Cevabını bekliyor";
 
@@ -35,18 +31,9 @@
 "%lldd %lldh" = "%lld gün %lld sa";
 
 /* Plan usage */
-"5 hours" = "5 saat";
-"7 days" = "7 gün";
 "resets in %@" = "%@ sonra sıfırlanır";
-"Claude 5-hour usage · resets in %@" = "Claude 5 saatlik kullanım · %@ sonra sıfırlanır";
-"Claude limit %lld%%" = "Claude limiti %%%lld";
 
 /* Desktop mascot */
-"Limit: %@" = "Limit: %@";
-"no data yet" = "henüz bilgi yok";
-"5h %lld%%" = "5 saat %%%lld";
-"week %lld%%" = "hafta %%%lld";
-"Last done: %@ · %@ ago" = "Son biten: %@ · %@ önce";
 "Good morning! ☀️" = "Günaydın! ☀️";
 "Show Info" = "Bilgi göster";
 "Open Panel" = "Paneli aç";
@@ -57,15 +44,8 @@
 "Turn it back on from the NotchHub menu in the menu bar." = "Menü çubuğundaki NotchHub menüsünden tekrar açabilirsin.";
 
 /* Menu bar */
-"Claude Code hooks installed" = "Claude Code hook'ları kurulu";
-"Claude Code hooks not installed" = "Claude Code hook'ları kurulu değil";
-"Install Hooks" = "Hook'ları kur";
-"Remove Hooks" = "Hook'ları kaldır";
 "Desktop Mascot" = "Masaüstü maskotu";
-"Open at Login" = "Girişte aç";
 "Quit NotchHub" = "NotchHub'dan çık";
-"Could not change the hooks" = "Hook ayarı değiştirilemedi";
-"Could not change Open at Login" = "Girişte açma ayarlanamadı";
 "~/.claude/settings.json is not valid JSON. It was left untouched." = "~/.claude/settings.json geçerli bir JSON değil. Dosyaya dokunulmadı.";
 "%@ was not found. Copy NotchHub to /Applications and try again." = "%@ bulunamadı. NotchHub'ı /Applications klasörüne kopyalayıp tekrar dene.";
 
@@ -80,7 +60,6 @@
 
 /* Drop zones */
 "Add to Shelf" = "Rafa ekle";
-"Keeps the path, never copies the file" = "Yolu saklanır, dosya kopyalanmaz";
 "Send to nearby devices" = "Yakındaki cihazlara gönder";
 "Save to Clipboard" = "Panoya kaydet";
 "Added to the history, ready to paste" = "Geçmişe eklenir, yapıştırmaya hazır";
@@ -122,9 +101,33 @@
 "✓ %@ done" = "✓ %@ bitti";
 "🙋 %@ needs permission" = "🙋 %@ izin istiyor";
 "❔ %@ asks you" = "❔ %@ soru soruyor";
-"Claude is idle" = "Claude boşta";
-"Download" = "İndirilen";
 "text" = "metin";
 "code" = "kod";
 "color" = "renk";
 "link" = "link";
+
+/* Clearer wording (1.1.1) */
+"Not seen yet" = "Henüz görmedin";
+"Click to open its terminal" = "Terminalini açmak için tıkla";
+"Always allow" = "Hep izin ver";
+"5-hour limit" = "5 saatlik limit";
+"Weekly limit" = "Haftalık limit";
+"5-hour limit: %lld%% used · resets in %@" = "5 saatlik limit: %%%lld kullanıldı · %@ sonra sıfırlanır";
+"5-hour limit %lld%% used" = "5 saatlik limit %%%lld doldu";
+"5-hour limit: %lld%% used" = "5 saatlik limit: %%%lld kullanıldı";
+"Weekly limit: %lld%% used" = "Haftalık limit: %%%lld kullanıldı";
+"Usage: no data yet" = "Kullanım: henüz veri yok";
+"%@ finished %@ ago" = "%1$@ %2$@ önce bitti";
+"%@ · %lld more" = "%1$@ · %2$lld diğer";
+"%lld%%" = "%%%lld";
+"No Claude session running" = "Çalışan Claude oturumu yok";
+"Downloaded file" = "İndirilen dosya";
+"The file stays where it is" = "Dosya yerinde kalır, kopyalanmaz";
+"Open at Login" = "Mac açılınca başlat";
+"Couldn't change Open at Login" = "Açılışta başlatma ayarı değiştirilemedi";
+"Connected to Claude Code" = "Claude Code'a bağlı";
+"Not connected to Claude Code" = "Claude Code'a bağlı değil";
+"Connect Claude Code" = "Claude Code'a bağlan";
+"Disconnect Claude Code" = "Claude Code bağlantısını kes";
+"Couldn't change the Claude Code connection" = "Claude Code bağlantısı değiştirilemedi";
+"Connect Claude Code from the NotchHub menu in the menu bar." = "Menü çubuğundaki NotchHub menüsünden Claude Code'a bağlan.";

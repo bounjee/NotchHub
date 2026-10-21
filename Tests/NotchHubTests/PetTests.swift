@@ -55,11 +55,11 @@ import Testing
 
     @Test func factsComeOneAtATimeInAFixedOrder() {
         let facts = PetBrain.info(store: store(working: true, usage: 42))
-        #expect(facts == ["my-app · Working", "Limit: 5h 42%"])
+        #expect(facts == ["my-app · Working", "5-hour limit: 42% used"])
     }
 
     @Test func idleWithoutData() {
-        #expect(PetBrain.info(store: store()) == ["Claude is idle", "Limit: no data yet"])
+        #expect(PetBrain.info(store: store()) == ["No Claude session running", "Usage: no data yet"])
     }
 
     @Test func latestFinishIsNamed() {
@@ -72,7 +72,7 @@ import Testing
         }
         let lines = PetBrain.info(store: store, now: start.addingTimeInterval(170))
         #expect(lines[0] == "2 done")
-        #expect(lines[2] == "Last done: my-app · 2m ago")
+        #expect(lines[2] == "my-app finished 2m ago")
     }
 
     @Test func napsAfterAWhile() {

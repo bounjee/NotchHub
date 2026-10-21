@@ -93,7 +93,7 @@ A little Claude sits on your desktop.
 
 1. Get `NotchHub.zip` from the [latest release](https://github.com/bounjee/NotchHub/releases/latest), unzip it and move `NotchHub.app` to Applications.
 2. Open it. The app isn't notarized, so macOS refuses the first time. Go to System Settings → Privacy & Security and click **Open Anyway**.
-3. Click the notch icon in the menu bar and choose **Install Hooks**.
+3. Click the notch icon in the menu bar and choose **Connect Claude Code**.
 
 ### Build it yourself
 
@@ -109,7 +109,7 @@ cd NotchHub && ./scripts/build-app.sh
 ditto dist/NotchHub.app /Applications/NotchHub.app && open /Applications/NotchHub.app
 ```
 
-Then click the notch icon in the menu bar and choose **Install Hooks**. New Claude Code sessions will show up in the notch. Sessions that were already running pick up the hooks the next time they start.
+Then click the notch icon in the menu bar and choose **Connect Claude Code**. New Claude Code sessions will show up in the notch. Sessions that were already running pick up the hooks the next time they start.
 
 The app is ad-hoc signed, since you build it yourself. It runs locally and makes no network requests.
 
@@ -120,7 +120,7 @@ Claude Code ──(hook, JSON on stdin)──► notch-hook ──(Unix socket)�
                                            ◄──(permission decision)──┘
 ```
 
-- **Hooks.** **Install Hooks** adds `notch-hook` entries for the session, prompt, tool, permission, notification and stop events to `~/.claude/settings.json`. Everything else in the file is left alone. Before the first change it saves a copy as `settings.json.notchhub-backup`. **Remove Hooks** removes only NotchHub's entries.
+- **Hooks.** **Connect Claude Code** adds `notch-hook` entries for the session, prompt, tool, permission, notification and stop events to `~/.claude/settings.json`. Everything else in the file is left alone. Before the first change it saves a copy as `settings.json.notchhub-backup`. **Disconnect Claude Code** removes only NotchHub's entries.
 - **Status line.** Claude Code reports plan usage only to its status line, so the installer also adds a `statusLine` command that prints nothing. It skips this if you already have a status line of your own.
 - **Fails safe.** `notch-hook` always exits 0 and prints nothing unless you answer a permission request in the notch. If the app isn't running, Claude Code carries on as usual.
 - **Project names.** Session names come from the git repository; for worktrees, the main repository's name is used.
@@ -128,7 +128,7 @@ Claude Code ──(hook, JSON on stdin)──► notch-hook ──(Unix socket)�
 
 ## Uninstall
 
-Choose **Remove Hooks** in the menu, quit NotchHub, then delete `/Applications/NotchHub.app`.
+Choose **Disconnect Claude Code** in the menu, quit NotchHub, then delete `/Applications/NotchHub.app`.
 
 ## Development
 
@@ -179,7 +179,7 @@ Bir de masaüstünde küçük bir maskot var:
 - Çift tıklayınca seni en çok bekleyen Claude oturumunun terminaline gider.
 - Sağ tıklayınca menü açılır.
 
-Kurulum için [son sürümden](https://github.com/bounjee/NotchHub/releases/latest) `NotchHub.zip`'i indir ya da yukarıdaki komutlarla kendin derle. Sonra menü çubuğundaki simgeden **Hook'ları kur**'u seç. Sistem dili Türkçe ise arayüz Türkçe açılır.
+Kurulum için [son sürümden](https://github.com/bounjee/NotchHub/releases/latest) `NotchHub.zip`'i indir ya da yukarıdaki komutlarla kendin derle. Sonra menü çubuğundaki simgeden **Claude Code'a bağlan**'ı seç. Sistem dili Türkçe ise arayüz Türkçe açılır.
 
 ## License
 

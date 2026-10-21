@@ -33,11 +33,11 @@ struct UsageRing: View {
                         .rotationEffect(.degrees(-90))
                 }
                 .frame(width: 12, height: 12)
-                Text(verbatim: "\(Int(window.usedPercentage.rounded()))%")
+                Text(percentText(window.usedPercentage))
                     .font(.system(size: 12, weight: .medium).monospacedDigit())
                     .foregroundStyle(.white.opacity(0.8))
             }
-            .help(String(localized: "Claude 5-hour usage · resets in \(window.resetText())"))
+            .help(String(localized: "5-hour limit: \(Int(window.usedPercentage.rounded()))% used · resets in \(window.resetText())"))
             .animation(.smooth, value: window.usedPercentage)
         }
     }
@@ -52,8 +52,8 @@ struct UsageSummary: View {
         if !current.isEmpty {
             TimelineView(.periodic(from: .now, by: 30)) { context in
                 HStack(spacing: 14) {
-                    if let window = current.fiveHour { bar(String(localized: "5 hours"), window, now: context.date) }
-                    if let window = current.sevenDay { bar(String(localized: "7 days"), window, now: context.date) }
+                    if let window = current.fiveHour { bar(String(localized: "5-hour limit"), window, now: context.date) }
+                    if let window = current.sevenDay { bar(String(localized: "Weekly limit"), window, now: context.date) }
                 }
             }
             .padding(.horizontal, 12)
@@ -66,7 +66,7 @@ struct UsageSummary: View {
         VStack(alignment: .leading, spacing: 5) {
             HStack(spacing: 6) {
                 Text(verbatim: title).font(.system(size: 11, weight: .semibold))
-                Text(verbatim: "\(Int(window.usedPercentage.rounded()))%")
+                Text(percentText(window.usedPercentage))
                     .font(.system(size: 11, weight: .semibold).monospacedDigit())
                     .foregroundStyle(window.level)
                 Spacer(minLength: 4)
@@ -86,4 +86,9 @@ struct UsageSummary: View {
         }
         .frame(maxWidth: .infinity)
     }
+}
+
+/// "42%" in English, "%42" in Turkish.
+func percentText(_ value: Double) -> String {
+    String(localized: "\(Int(value.rounded()))%")
 }

@@ -130,12 +130,12 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
 
         let installed = HookInstaller.isInstalled()
         let status = NSMenuItem(
-            title: installed ? String(localized: "Claude Code hooks installed") : String(localized: "Claude Code hooks not installed"),
+            title: installed ? String(localized: "Connected to Claude Code") : String(localized: "Not connected to Claude Code"),
             action: nil, keyEquivalent: ""
         )
         status.isEnabled = false
         menu.addItem(status)
-        menu.addItem(withTitle: installed ? String(localized: "Remove Hooks") : String(localized: "Install Hooks"),
+        menu.addItem(withTitle: installed ? String(localized: "Disconnect Claude Code") : String(localized: "Connect Claude Code"),
                      action: #selector(toggleHooks), keyEquivalent: "").target = self
         menu.addItem(.separator())
 
@@ -160,7 +160,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
                 try HookInstaller.install(hookPath: hookPath)
             }
         } catch {
-            showError(String(localized: "Could not change the hooks"), error)
+            showError(String(localized: "Couldn't change the Claude Code connection"), error)
         }
         claude.hooksInstalled = HookInstaller.isInstalled()
     }
@@ -190,7 +190,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
                 try SMAppService.mainApp.register()
             }
         } catch {
-            showError(String(localized: "Could not change Open at Login"), error)
+            showError(String(localized: "Couldn't change Open at Login"), error)
         }
     }
 

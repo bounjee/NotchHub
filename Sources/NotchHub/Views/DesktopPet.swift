@@ -15,16 +15,16 @@ enum PetBrain {
     /// The things worth knowing, shown one per click: Claude, plan usage, the latest finish.
     @MainActor
     static func info(store: ClaudeStore, now: Date = Date()) -> [String] {
-        var lines = [store.statusSummary ?? String(localized: "Claude is idle")]
+        var lines = [store.statusSummary ?? String(localized: "No Claude session running")]
 
+        // One full sentence per limit, so it reads on its own in the bubble.
         let limits = store.limits.current(at: now)
-        var usage: [String] = []
-        if let window = limits.fiveHour { usage.append(String(localized: "5h \(Int(window.usedPercentage.rounded()))%")) }
-        if let window = limits.sevenDay { usage.append(String(localized: "week \(Int(window.usedPercentage.rounded()))%")) }
-        lines.append(String(localized: "Limit: \(usage.isEmpty ? String(localized: "no data yet") : usage.joined(separator: " · "))"))
+        if let window = limits.fiveHour { lines.append(String(localized: "5-hour limit: \(Int(window.usedPercentage.rounded()))% used")) }
+        if let window = limits.sevenDay { lines.append(String(localized: "Weekly limit: \(Int(window.usedPercentage.rounded()))% used")) }
+        if limits.fiveHour == nil && limits.sevenDay == nil { lines.append(String(localized: "Usage: no data yet")) }
 
         if let finished = store.sessions.values.filter({ $0.status == .done }).max(by: { $0.statusSince < $1.statusSince }) {
-            lines.append(String(localized: "Last done: \(ClaudeStore.shortLabel(finished.label)) · \(shortElapsed(from: finished.statusSince, to: now)) ago"))
+            lines.append(String(localized: "\(ClaudeStore.shortLabel(finished.label)) finished \(shortElapsed(from: finished.statusSince, to: now)) ago"))
         }
         return lines
     }

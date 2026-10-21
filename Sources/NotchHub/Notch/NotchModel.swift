@@ -68,8 +68,8 @@ enum PeekReason: Equatable {
         case .claudeDone(let label), .question(let label): label
         case .copied: String(localized: "Copied")
         case .screenshot: String(localized: "Screenshot")
-        case .downloaded(let name): name.count <= 22 ? name : String(localized: "Download")
-        case .usage(let percent): String(localized: "Claude limit \(percent)%")
+        case .downloaded(let name): name.count <= 22 ? name : String(localized: "Downloaded file")
+        case .usage(let percent): String(localized: "5-hour limit \(percent)% used")
         case .permission, .summoned: nil
         }
     }

@@ -336,7 +336,7 @@ private struct DropZones: View {
         HStack(spacing: 10) {
             switch kind {
             case .files:
-                DropZone(title: String(localized: "Add to Shelf"), detail: String(localized: "Keeps the path, never copies the file"),
+                DropZone(title: String(localized: "Add to Shelf"), detail: String(localized: "The file stays where it is"),
                          symbol: "tray.and.arrow.down.fill", types: [.fileURL]) {
                     receiveFiles($0, false)
                 }
@@ -480,10 +480,10 @@ struct ClaudeHeadline: View {
         HStack(spacing: 7) {
             if let first = sessions.first {
                 StatusIndicator(status: first.status)
-                OneLine {
-                    Text(verbatim: Self.summary(sessions))
-                        .font(.system(size: 12, weight: .medium))
-                        .foregroundStyle(.white.opacity(0.85))
+                // The full summary when it fits beside the tabs, else just the most urgent group.
+                ViewThatFits(in: .horizontal) {
+                    headline(Self.summary(sessions)).fixedSize()
+                    OneLine { headline(Self.summary(sessions, short: true)) }
                 }
             } else {
                 Text("✻").font(.system(size: 13, weight: .bold)).foregroundStyle(Color.claude)
@@ -497,12 +497,18 @@ struct ClaudeHeadline: View {
 
     /// Short enough to sit beside the tabs: "web-app · Working" for one session,
     /// otherwise the most urgent group and how many others there are ("1 needs permission +2").
-    static func summary(_ sessions: [ClaudeSession]) -> String {
+    private func headline(_ text: String) -> some View {
+        Text(verbatim: text)
+            .font(.system(size: 12, weight: .medium))
+            .foregroundStyle(.white.opacity(0.85))
+    }
+
+    static func summary(_ sessions: [ClaudeSession], short: Bool = false) -> String {
         guard let first = sessions.first else { return "" }
         if sessions.count == 1 { return "\(ClaudeStore.shortLabel(first.label)) · \(first.status.title)" }
         let urgent = sessions.filter { $0.status == first.status }.count
         let head = "\(urgent) \(first.status.title.localizedLowercase)"
-        return urgent == sessions.count ? head : "\(head) +\(sessions.count - urgent)"
+        return urgent == sessions.count || short ? head : String(localized: "\(head) · \(sessions.count - urgent) more")
     }
 }
 
