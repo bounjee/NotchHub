@@ -71,6 +71,8 @@ struct NotchRootView: View {
     static func wings(_ model: NotchModel) -> (left: CGFloat, right: CGFloat) {
         if model.presentation == .compact { return (closedTopRadius, model.compactWingWidth) }
         let lift = model.isHoverPrimed ? hoverLift.width : 0
+        // A recording takes the wing over: a red dot and the time, so it is never forgotten.
+        if model.capture.isRecording { return (closedTopRadius + lift, 64 + lift) }
         let right: CGFloat = switch model.claude.indicator {
         case nil: closedTopRadius
         case let indicator? where indicator.count > 1: 44
@@ -205,7 +207,11 @@ struct NotchRootView: View {
             let wings = Self.wings(model)
             HStack(spacing: 0) {
                 Color.clear.frame(width: model.notchSize.width + wings.left - topRadius)
-                if let indicator = model.claude.indicator {
+                if let since = model.capture.recordingSince {
+                    RecordingIndicator(since: since)
+                        .frame(width: wings.right - topRadius)
+                        .transition(.scale(scale: 0.4).combined(with: .opacity))
+                } else if let indicator = model.claude.indicator {
                     ClosedIndicatorView(indicator: indicator)
                         .frame(width: wings.right - topRadius)
                         .transition(.scale(scale: 0.4).combined(with: .opacity))
@@ -291,6 +297,8 @@ private struct CompactActivity: View {
                 icon("arrow.down.circle.fill", .blue)
             case .usage(let percent):
                 icon("gauge.with.dots.needle.67percent", percent >= 95 ? .red : .orange)
+            case .captured(let video):
+                icon(video ? "video.fill" : "camera.fill", .green)
             default:
                 EmptyView()
             }
@@ -410,6 +418,7 @@ private struct TabContent: View {
             case .claude: ClaudeTab(store: model.claude)
             case .shelf: ShelfTab(shelf: model.shelf)
             case .clipboard: ClipboardTab(history: model.clipboard)
+            case .capture: CaptureTab(capture: model.capture)
             }
         }
         .frame(maxWidth: .infinity, alignment: .topLeading)
@@ -440,7 +449,7 @@ private struct TabBar: View {
                                 .font(.system(size: 9.5, weight: .bold).monospacedDigit())
                                 .padding(.horizontal, 5)
                                 .frame(minWidth: 15, minHeight: 15)
-                                .background(Capsule().fill(tab == .claude ? Color.claude : .white.opacity(0.18)))
+                                .background(Capsule().fill(tab == .claude ? Color.claude : tab == .capture ? Color.red : .white.opacity(0.18)))
                                 .foregroundStyle(.white)
                                 .contentTransition(.numericText())
                         }
@@ -467,6 +476,7 @@ private struct TabBar: View {
         case .claude: model.claude.pending.isEmpty ? nil : "\(model.claude.pending.count)"
         case .shelf: model.shelf.items.isEmpty ? nil : "\(model.shelf.items.count)"
         case .clipboard: nil
+        case .capture: model.capture.isRecording ? "●" : nil
         }
     }
 }
@@ -509,6 +519,28 @@ struct ClaudeHeadline: View {
         let urgent = sessions.filter { $0.status == first.status }.count
         let head = "\(urgent) \(first.status.title.localizedLowercase)"
         return urgent == sessions.count || short ? head : String(localized: "\(head) · \(sessions.count - urgent) more")
+    }
+}
+
+/// The closed notch while recording: a pulsing red dot and how long it has run.
+private struct RecordingIndicator: View {
+    let since: Date
+
+    var body: some View {
+        HStack(spacing: 5) {
+            LayerPulseDot(color: .systemRed)
+            TimelineView(.periodic(from: .now, by: 1)) { context in
+                Text(verbatim: Self.clock(context.date.timeIntervalSince(since)))
+                    .font(.system(size: 10.5, weight: .semibold).monospacedDigit())
+                    .foregroundStyle(.white.opacity(0.85))
+            }
+        }
+    }
+
+    /// "0:42", "12:05".
+    static func clock(_ seconds: TimeInterval) -> String {
+        let total = max(0, Int(seconds))
+        return String(format: "%d:%02d", total / 60, total % 60)
     }
 }
 

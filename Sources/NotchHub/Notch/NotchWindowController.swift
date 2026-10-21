@@ -105,6 +105,7 @@ final class NotchWindowController {
             _ = model.peek
             _ = model.drag
             _ = model.claude.indicator
+            _ = model.capture.isRecording
         } onChange: { [weak self] in
             Task { @MainActor in
                 guard let self else { return }

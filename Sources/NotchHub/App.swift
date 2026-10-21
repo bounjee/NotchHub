@@ -21,7 +21,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
     private let shelf = Shelf()
     private let clipboard = ClipboardHistory()
     private let arrivals = FileArrivals()
-    private lazy var model = NotchModel(claude: claude, shelf: shelf, clipboard: clipboard)
+    private let capture = ScreenCapture()
+    private lazy var model = NotchModel(claude: claude, shelf: shelf, clipboard: clipboard, capture: capture)
     private lazy var windowController = NotchWindowController(model: model)
     private lazy var pet = DesktopPet(model: model) { [weak self] in
         guard let self else { return }
@@ -56,6 +57,16 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
             self.peek(kind == .screenshot ? .screenshot(url.path) : .downloaded(url.lastPathComponent))
         }
         arrivals.start()
+        capture.onWillCapture = { [weak self] in
+            guard let self else { return }
+            withAnimation(.notchClose) { self.model.close() }
+        }
+        capture.onCaptured = { [weak self] video, file in
+            guard let self else { return }
+            // Recordings also land on the shelf, ready to drag into a chat or an email.
+            if let file { withAnimation(.snappy) { self.shelf.add([file]) } }
+            self.peek(.captured(video: video))
+        }
         claude.hooksInstalled = HookInstaller.isInstalled()
         if DesktopPet.isEnabled { pet.start() }
 
@@ -139,6 +150,11 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
                      action: #selector(toggleHooks), keyEquivalent: "").target = self
         menu.addItem(.separator())
 
+        if capture.isRecording {
+            menu.addItem(withTitle: String(localized: "Stop Recording"), action: #selector(stopRecording), keyEquivalent: "").target = self
+            menu.addItem(.separator())
+        }
+
         let petItem = menu.addItem(withTitle: String(localized: "Desktop Mascot"), action: #selector(togglePet), keyEquivalent: "")
         petItem.target = self
         petItem.state = pet.isRunning ? .on : .off
@@ -170,6 +186,10 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
         let bundled = Bundle.main.bundleURL.appendingPathComponent("Contents/MacOS/notch-hook").path
         return FileManager.default.isExecutableFile(atPath: bundled) && bundled.contains(HookInstaller.marker)
             ? bundled : HookInstaller.defaultHookPath
+    }
+
+    @objc private func stopRecording() {
+        capture.stopRecording()
     }
 
     @objc private func togglePet() {

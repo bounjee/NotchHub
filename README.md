@@ -16,13 +16,14 @@ Give Claude a task, put a video on, and forget the terminal:
 - **Permission requests** come to you. Allow or deny them from the notch, without leaving what you're watching.
 - **Files and copies** stay at hand. Drop files on the notch, and find what you copied earlier in the clipboard history.
 
-NotchHub does three things, and nothing else:
+NotchHub does four things, and nothing else:
 
 1. **Claude Code**: see what every session is doing and answer its permission requests.
 2. **Shelf**: a place for the files you're about to use.
 3. **Clipboard**: what you copied recently.
+4. **Capture**: a screenshot or a screen recording in one click, ready to paste.
 
-Hover over the notch or click it to open the panel. Switch between the three with the tabs at the top.
+Hover over the notch or click it to open the panel. Switch between them with the tabs at the top.
 
 ## Claude Code
 
@@ -61,6 +62,22 @@ Hover over the notch or click it to open the panel. Switch between the three wit
 - **Private by design.**
   - The history lives in memory only and is never written to disk.
   - Password managers' copies are skipped.
+
+## Capture
+
+<p align="center"><img src="docs/open-capture.png" width="640" alt="The capture tab"></p>
+
+- **Screenshots go straight to the clipboard.** Pick an area, a window or the full screen, then paste it anywhere. The panel steps out of the way first, so it's never in the picture.
+- **Record the screen or one window.** While recording, the notch shows a red dot and the time; stop it from the Capture tab or the menu bar menu.
+- **Recordings are ready to share.**
+  - Each one is saved in Movies › NotchHub as HEVC video.
+  - It's copied to the clipboard as a file, so you can paste it into Finder, Messages, Slack or Discord.
+  - It also lands on the shelf.
+- **One permission.** macOS asks once for Screen Recording permission (System Settings → Privacy & Security). Two things to know:
+  - macOS Sequoia asks every app that records the screen to confirm this again once a month.
+  - The app is ad-hoc signed, so macOS may ask again after you install an update.
+
+  Recording a single window uses the system's own window picker, which needs no separate permission.
 
 ## The mascot
 
@@ -156,7 +173,7 @@ The app icon is drawn by `scripts/make-icon.swift`; `./scripts/make-icon.sh` reb
 
 **Terminale değil filmine bak.** Claude'a işi ver, videonu aç. İş bitince ya da Claude bir şey sorunca çentik sana haber verir. İzin isteklerini çentikten onaylarsın, dosyaların ve kopyaladıkların bir fare hareketi uzakta durur.
 
-NotchHub üç şey yapar, fazlasını değil:
+NotchHub dört şey yapar, fazlasını değil:
 
 1. **Claude Code:** oturumların ne yaptığını gösterir.
    - Çalışırken yükleniyor göstergesi, izin beklerken turuncu nokta, bitince yeşil tik ve proje adı, soru sorunca soru ikonu ve proje adı çıkar.
@@ -169,6 +186,11 @@ NotchHub üç şey yapar, fazlasını değil:
 3. **Pano:** kopyaladığın son 20 metin burada.
    - Sabitleyebilir, tıklayıp tekrar kopyalayabilirsin.
    - Geçmiş sadece bellekte tutulur.
+4. **Ekran:** tek tıkla ekran görüntüsü ya da ekran kaydı.
+   - Ekran görüntüsü (alan, pencere ya da tam ekran) doğrudan panoya gider.
+   - Kayıt sırasında çentikte kırmızı nokta ve süre görünür. Kaydı Ekran sekmesinden ya da menü çubuğundan durdurursun.
+   - Kayıt Filmler › NotchHub klasörüne kaydedilir, dosya olarak panoya kopyalanır ve rafa da eklenir.
+   - Bunun için macOS bir kez "Ekran Kaydı" izni ister.
 
 Bir de masaüstünde küçük bir maskot var:
 

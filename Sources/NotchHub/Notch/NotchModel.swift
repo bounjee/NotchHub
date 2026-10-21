@@ -3,7 +3,7 @@ import Observation
 import SwiftUI
 
 enum NotchTab: String, CaseIterable, Identifiable {
-    case claude, shelf, clipboard
+    case claude, shelf, clipboard, capture
     var id: Self { self }
 
     var title: String {
@@ -11,6 +11,7 @@ enum NotchTab: String, CaseIterable, Identifiable {
         case .claude: "Claude"
         case .shelf: String(localized: "Shelf")
         case .clipboard: String(localized: "Clipboard")
+        case .capture: String(localized: "Capture")
         }
     }
 
@@ -19,6 +20,7 @@ enum NotchTab: String, CaseIterable, Identifiable {
         case .claude: "sparkle"
         case .shelf: "tray.full"
         case .clipboard: "doc.on.clipboard"
+        case .capture: "camera.viewfinder"
         }
     }
 }
@@ -40,6 +42,8 @@ enum PeekReason: Equatable {
     case downloaded(String)
     /// Five-hour plan usage reached this percentage.
     case usage(Int)
+    /// A screenshot went to the clipboard, or a recording was saved and copied.
+    case captured(video: Bool)
 
     var opensPanel: Bool { self == .permission || self == .summoned }
 
@@ -53,7 +57,7 @@ enum PeekReason: Equatable {
 
     var duration: Duration {
         switch self {
-        case .copied: .milliseconds(1600)
+        case .copied, .captured: .milliseconds(1600)
         case .claudeDone: .seconds(3)
         case .question: .seconds(4)
         case .screenshot, .downloaded: .milliseconds(3500)
@@ -70,6 +74,7 @@ enum PeekReason: Equatable {
         case .screenshot: String(localized: "Screenshot")
         case .downloaded(let name): name.count <= 22 ? name : String(localized: "Downloaded file")
         case .usage(let percent): String(localized: "5-hour limit \(percent)% used")
+        case .captured(let video): video ? String(localized: "Recording copied") : String(localized: "Screenshot copied")
         case .permission, .summoned: nil
         }
     }
@@ -80,7 +85,7 @@ enum PeekReason: Equatable {
         case .claudeDone, .question: nil
         case .copied(let text): ClipboardKind.detect(text).name
         case .screenshot, .downloaded: String(localized: "on the shelf")
-        case .usage, .permission, .summoned: nil
+        case .usage, .captured, .permission, .summoned: nil
         }
     }
 
@@ -109,6 +114,7 @@ final class NotchModel {
     let claude: ClaudeStore
     let shelf: Shelf
     let clipboard: ClipboardHistory
+    let capture: ScreenCapture
 
     var notchSize = CGSize(width: 185, height: 32)
     private(set) var presentation: Presentation = .closed
@@ -134,10 +140,11 @@ final class NotchModel {
 
     private var peekTask: Task<Void, Never>?
 
-    init(claude: ClaudeStore, shelf: Shelf, clipboard: ClipboardHistory) {
+    init(claude: ClaudeStore, shelf: Shelf, clipboard: ClipboardHistory, capture: ScreenCapture = ScreenCapture()) {
         self.claude = claude
         self.shelf = shelf
         self.clipboard = clipboard
+        self.capture = capture
     }
 
     var isOpen: Bool { presentation == .open }
@@ -237,6 +244,8 @@ final class NotchModel {
     /// Claude while it needs you or was busy lately, else the tab the user last picked.
     private var defaultTab: NotchTab {
         if !claude.pending.isEmpty { return .claude }
+        // Recording: the stop button is what you came for.
+        if capture.isRecording { return .capture }
         if let last = claude.lastEventAt, Date().timeIntervalSince(last) < 5 * 60 { return .claude }
         return lastUserTab
     }

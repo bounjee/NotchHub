@@ -111,6 +111,10 @@ enum Snapshot {
         model.select(.clipboard)
         captureOpen("open-clipboard")
 
+        // The capture tab.
+        model.select(.capture)
+        captureOpen("open-capture")
+
         // The desktop mascot: talking, then napping.
         write(mascots(), to: directory.appendingPathComponent("mascot.png"))
         writeGIF((0..<mascotFrames).map { mascots(frame: $0, rounded: false) }, delay: 0.12,
