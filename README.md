@@ -80,6 +80,14 @@ A little Claude sits on your desktop.
 
 ## Install
 
+### Download
+
+1. Get `NotchHub.zip` from the [latest release](https://github.com/bounjee/NotchHub/releases/latest), unzip it and move `NotchHub.app` to Applications.
+2. Open it. The app isn't notarized, so macOS refuses the first time. Go to System Settings → Privacy & Security and click **Open Anyway**.
+3. Click the notch icon in the menu bar and choose **Install Hooks**.
+
+### Build it yourself
+
 ```bash
 git clone https://github.com/bounjee/NotchHub.git
 ```
@@ -158,7 +166,7 @@ Bir de masaüstünde küçük bir maskot var:
 - Tıklayınca durumu söyler.
 - Sağ tıklayınca menü açılır.
 
-Kurulum için yukarıdaki komutları çalıştır. Sonra menü çubuğundaki simgeden **Hook'ları kur**'u seç. Sistem dili Türkçe ise arayüz Türkçe açılır.
+Kurulum için [son sürümden](https://github.com/bounjee/NotchHub/releases/latest) `NotchHub.zip`'i indir ya da yukarıdaki komutlarla kendin derle. Sonra menü çubuğundaki simgeden **Hook'ları kur**'u seç. Sistem dili Türkçe ise arayüz Türkçe açılır.
 
 ## License
 
