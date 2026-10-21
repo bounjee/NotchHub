@@ -400,7 +400,7 @@ final class DesktopPet {
                   let asking = model.claude.sortedSessions.first(where: { $0.status == .waitingForUser }) {
             wake(greeting: nil)
             view.sprite.hop()
-            view.say(String(localized: "❓ \(ClaudeStore.shortLabel(asking.label)) asks you"), for: 3.5)
+            view.say(String(localized: "❔ \(ClaudeStore.shortLabel(asking.label)) asks you"), for: 3.5)
         }
         lastStatus = .some(status)
         if !isAsleep { restingAnimation() }

@@ -155,8 +155,8 @@ import Testing
 
     @Test func bubbleWrapsInsteadOfCutting() {
         let font = NSFont.systemFont(ofSize: 12, weight: .semibold)
-        let lines = PetView.wrap("❓ NotchHub macOS asks you about the next release plan", width: 150, font: font)
+        let lines = PetView.wrap("❔ NotchHub macOS asks you about the next release plan", width: 150, font: font)
         #expect(lines.count > 1)
-        #expect(lines.joined(separator: " ") == "❓ NotchHub macOS asks you about the next release plan")
+        #expect(lines.joined(separator: " ") == "❔ NotchHub macOS asks you about the next release plan")
     }
 }

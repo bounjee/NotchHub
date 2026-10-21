@@ -123,7 +123,7 @@
 /* Short, clear lines for the notch and the mascot */
 "✓ %@ done" = "✓ %@ bitti";
 "🙋 %@ needs permission" = "🙋 %@ izin istiyor";
-"❓ %@ asks you" = "❓ %@ soru soruyor";
+"❔ %@ asks you" = "❔ %@ soru soruyor";
 "Claude is idle" = "Claude boşta";
 "Download" = "İndirilen";
 "text" = "metin";
