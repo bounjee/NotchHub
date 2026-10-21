@@ -4,6 +4,8 @@
 
 <p align="center">A small, focused Claude Code companion for the MacBook notch, with a pixel mascot.</p>
 
+<p align="center"><a href="https://github.com/bounjee/NotchHub/actions/workflows/test.yml"><img src="https://github.com/bounjee/NotchHub/actions/workflows/test.yml/badge.svg" alt="Tests"></a></p>
+
 <p align="center"><img src="docs/open-panel.png" width="560" alt="The open notch panel"></p>
 
 NotchHub keeps an eye on your Claude Code sessions from the notch. It shows what each session is doing, tells you when one finishes, and lets you approve permission requests without switching to the terminal. A pixel mascot can sit on your desktop and nap until something happens. That's all it does.
