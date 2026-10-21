@@ -43,7 +43,7 @@ final class NotchWindowController {
 
     /// Long enough that passing over the notch on the way to the menu bar does not open it;
     /// the notch grows a little meanwhile, so the wait does not feel unresponsive.
-    static let openDelay: Duration = .milliseconds(1000)
+    static let openDelay: Duration = .milliseconds(700)
     static let closeDelay: Duration = .milliseconds(300)
     /// Room around the open panel for the shadow.
     static let shadowPadding: CGFloat = 24
@@ -185,6 +185,14 @@ final class NotchWindowController {
         switch event.type {
         case .leftMouseDown:
             dragChangeCount = NSPasteboard(name: .drag).changeCount
+            // A click on the closed notch opens it right away. The notch sits in the menu bar,
+            // whose clicks never reach our window, so this comes from the event monitor.
+            if !model.isOpen, screen != nil, hoverRect().contains(location) {
+                openTask?.cancel()
+                openTask = nil
+                withAnimation(.notchOpen) { model.open() }
+                haptic(force: true)
+            }
         case .leftMouseDragged:
             trackDrag(at: location)
         case .leftMouseUp:

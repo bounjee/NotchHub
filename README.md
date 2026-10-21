@@ -46,7 +46,7 @@ Tasarım incelemesi için her durumu örnek verilerle PNG'ye çizer:
 - İkinci bir örnek açılırsa (girişte başlat + elle açma) kendini kapatır.
 
 - macOS menü çubuğu bandını her pencerenin üstüne çizer ve oradaki tıklamaları kendisi alır. Bu yüzden açık panel bantta sadece çentik genişliğinde bir "boyun" olarak durur, altında genişler; kapalı/compact içerik de sadece çentiğin sağında. Menüler hiç örtülmez.
-- Hover ile açılma 1 sn bekler (menü çubuğuna giderken yanlışlıkla açılmasın); beklerken çentik hafifçe büyür.
+- Hover ile açılma 0,7 sn bekler (menü çubuğuna giderken yanlışlıkla açılmasın), beklerken çentik hafifçe büyür. Çentiğe tıklayınca beklemeden açılır.
 - Kullanım limiti için hook kurulumu `statusLine`'ı da ekler (sadece kullanıcının kendi statusLine'ı yoksa); terminale hiçbir şey yazmaz.
 - `claude -p` Stop'tan hemen sonra SessionEnd gönderir; `done` oturumlar bu yüzden SessionEnd ile silinmez, 10 dk sonra düşer. 30 dk olay gelmeyen oturumlar (kapatılmış terminal) da düşer.
 - Ad-hoc imzalı olduğu için her yeniden derlemede macOS gizlilik izinleri (pano) yeniden sorulabilir.
