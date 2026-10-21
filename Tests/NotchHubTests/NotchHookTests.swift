@@ -159,6 +159,25 @@ import Testing
         #expect(received.get()?.ancestors.isEmpty == false)
     }
 
+    @Test func hookNamesTheGitRepositoryEvenFromAWorktree() throws {
+        let received = EventBox()
+        let server = HubServer(path: socketPath, onEvent: { event, _ in received.set(event) }, onClose: { _ in })
+        try server.start()
+        // Not under /tmp: temporary folders are deliberately unnamed.
+        let base = FileManager.default.homeDirectoryForCurrentUser
+            .appendingPathComponent("Library/Caches/notchhub-test-\(UUID().uuidString.prefix(6))")
+        defer { try? FileManager.default.removeItem(at: base) }
+        let repo = base.appendingPathComponent("dolphydesk")
+        let worktree = repo.appendingPathComponent(".claude/worktrees/fix-login/src")
+        try FileManager.default.createDirectory(at: repo.appendingPathComponent(".git/worktrees/fix-login"), withIntermediateDirectories: true)
+        try FileManager.default.createDirectory(at: worktree, withIntermediateDirectories: true)
+        try "gitdir: \(repo.path)/.git/worktrees/fix-login\n".write(to: repo.appendingPathComponent(".claude/worktrees/fix-login/.git"), atomically: true, encoding: .utf8)
+
+        _ = try runHook(#"{"hook_event_name":"SessionStart","session_id":"s","cwd":"\#(worktree.path)"}"#)
+        try waitUntil { received.get() != nil }
+        #expect(received.get()?.project == "dolphydesk")
+    }
+
     @Test func emptyInputExitsQuietly() throws {
         _ = try startServer { _ in nil }
         let result = try runHook("")

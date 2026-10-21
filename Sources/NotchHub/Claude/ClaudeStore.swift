@@ -17,12 +17,20 @@ struct ClaudeSession: Identifiable, Equatable {
     /// When the current turn started working, and how many tools it used.
     var workStartedAt: Date?
     var toolUses = 0
+    /// A finished (or failed) turn the user has not looked at yet.
+    var unseen = false
 
     /// Claude Code and the desktop app run quick helper sessions (titles, suggestions) that
     /// also send hooks. A turn counts as real work if it used a tool or took a few seconds.
     func didRealWork(at now: Date) -> Bool {
         toolUses > 0 || now.timeIntervalSince(workStartedAt ?? now) >= ClaudeStore.minimumWork
     }
+}
+
+/// What the closed notch shows: the most urgent kind of activity and how many sessions have it.
+struct ClosedIndicator: Equatable {
+    var kind: SessionStatus
+    var count: Int
 }
 
 /// Plan usage from Claude Code's status line (Pro/Max only).
@@ -70,6 +78,8 @@ final class ClaudeStore {
     /// The most urgent status across sessions, used by the closed notch.
     /// Stored (not computed) so views that read it only update when it actually changes.
     private(set) var headlineStatus: SessionStatus?
+    /// Closed-notch summary across sessions; nil when there is nothing worth showing.
+    private(set) var indicator: ClosedIndicator?
     /// Whether our hooks are in ~/.claude/settings.json; kept here so views never read the file.
     var hooksInstalled = false
     private(set) var limits = UsageLimits()
@@ -103,21 +113,71 @@ final class ClaudeStore {
     private var recentToolUses: [String: [(name: String, inputKey: String?, id: String)]] = [:]
     /// Tool calls that already finished; their ids must never be given to a new request.
     private var finishedToolUseIDs: [String] = []
+    /// Sessions run by `claude -p`; their events are ignored.
+    private var headlessSessions: Set<String> = []
 
+    /// Most urgent first: waiting on you, working, then the most recently finished.
     var sortedSessions: [ClaudeSession] {
-        sessions.values.sorted { $0.lastEventAt > $1.lastEventAt }
+        sessions.values.sorted { a, b in
+            let (ra, rb) = (Self.urgency(a.status), Self.urgency(b.status))
+            if ra != rb { return ra < rb }
+            // Working sessions keep their place (newest turn first) instead of reshuffling.
+            if a.status == .working { return (a.workStartedAt ?? a.statusSince) > (b.workStartedAt ?? b.statusSince) }
+            return a.statusSince > b.statusSince
+        }
+    }
+
+    static func urgency(_ status: SessionStatus) -> Int {
+        switch status {
+        case .needsApproval: 0
+        case .waitingForUser: 1
+        case .working: 2
+        case .error: 3
+        case .done: 4
+        case .idle: 5
+        }
     }
 
     private func refreshHeadline() {
         let statuses = Set(sessions.values.map(\.status))
         let headline = [SessionStatus.needsApproval, .error, .working, .waitingForUser, .done].first { statuses.contains($0) }
         if headline != headlineStatus { headlineStatus = headline }
+
+        func count(_ match: (ClaudeSession) -> Bool) -> Int { sessions.values.filter(match).count }
+        let approvals = count { $0.status == .needsApproval }
+        let working = count { $0.status == .working }
+        let waiting = count { $0.status == .waitingForUser }
+        let failed = count { $0.status == .error && $0.unseen }
+        let finished = count { $0.status == .done && $0.unseen }
+        let next: ClosedIndicator? =
+            approvals > 0 ? ClosedIndicator(kind: .needsApproval, count: approvals)
+            : working > 0 ? ClosedIndicator(kind: .working, count: working)
+            : waiting > 0 ? ClosedIndicator(kind: .waitingForUser, count: waiting)
+            : failed > 0 ? ClosedIndicator(kind: .error, count: failed)
+            : finished > 0 ? ClosedIndicator(kind: .done, count: finished)
+            : nil
+        if next != indicator { indicator = next }
+    }
+
+    /// The panel was opened: finished turns count as seen.
+    func markSeen() {
+        guard sessions.values.contains(where: \.unseen) else { return }
+        for id in sessions.keys where sessions[id]?.unseen == true { sessions[id]?.unseen = false }
+        refreshHeadline()
     }
 
     func handle(_ event: HookEvent, responder: PermissionReplying? = nil, now: Date = Date()) {
         if event.isStatusLine {
             updateLimits(event, now: now)
             locateTerminal(event)
+            return
+        }
+        if event.isHeadless { headlessSessions.insert(event.sessionID) }
+        if headlessSessions.contains(event.sessionID) {
+            // Never leave a hook waiting, and forget anything shown before we knew.
+            responder?.reply(Self.replyLine(.none, suggestions: nil))
+            if sessions.removeValue(forKey: event.sessionID) != nil { refreshHeadline() }
+            if event.name == "SessionEnd" { headlessSessions.remove(event.sessionID) }
             return
         }
         defer { refreshHeadline() }
@@ -130,7 +190,7 @@ final class ClaudeStore {
 
         switch event.name {
         case "SessionStart":
-            sessions[sid] = ClaudeSession(id: sid, label: label(for: event.cwd), statusSince: now, lastEventAt: now)
+            sessions[sid] = ClaudeSession(id: sid, label: label(for: event), statusSince: now, lastEventAt: now)
 
         case "UserPromptSubmit":
             resolvePending(in: sid, with: .none)
@@ -195,6 +255,7 @@ final class ClaudeStore {
                 $0.status = event.hasBackgroundTasks ? .working : .done
                 $0.currentTool = nil
                 if let message = event.lastAssistantMessage, !message.isEmpty { $0.lastMessage = message }
+                if !event.hasBackgroundTasks, worked { $0.unseen = true }
             }
             if !event.hasBackgroundTasks, worked { onPeek?(.claudeDone(sessions[sid]?.label ?? "Claude")) }
 
@@ -203,6 +264,7 @@ final class ClaudeStore {
             update(sid, event, now) {
                 $0.status = .error
                 $0.currentTool = nil
+                $0.unseen = true
                 $0.lastMessage = event.lastAssistantMessage ?? event.errorMessage ?? $0.lastMessage
             }
 
@@ -325,9 +387,14 @@ final class ClaudeStore {
         return summary.isEmpty ? name : "\(name): \(summary)"
     }
 
-    private func label(for cwd: String) -> String {
+    /// The project name from notch-hook; for scratch and temporary folders the session title.
+    private func label(for event: HookEvent) -> String {
+        if let project = event.project { return project }
+        if let title = event.sessionTitle { return title }
+        let cwd = event.cwd
+        let temporary = cwd.contains("/scratch-workspaces/") || ["/private/tmp/", "/tmp/", "/private/var/folders/", "/var/folders/"].contains(where: cwd.hasPrefix)
         let name = URL(fileURLWithPath: cwd).lastPathComponent
-        return name.isEmpty || cwd.isEmpty ? "Claude" : name
+        return name.isEmpty || cwd.isEmpty || temporary ? "Claude" : name
     }
 
     private func hasPending(_ sid: String) -> Bool {
@@ -354,13 +421,17 @@ final class ClaudeStore {
 
     /// Applies a change to a session, creating it if a hook arrives before SessionStart.
     private func update(_ sid: String, _ event: HookEvent, _ now: Date, _ change: (inout ClaudeSession) -> Void) {
-        var session = sessions[sid] ?? ClaudeSession(id: sid, label: label(for: event.cwd), statusSince: now, lastEventAt: now)
+        var session = sessions[sid] ?? ClaudeSession(id: sid, label: label(for: event), statusSince: now, lastEventAt: now)
+        // A session first seen through a tool event has only the folder name; improve it later.
+        if let project = event.project { session.label = project }
+        else if session.label == "Claude", let title = event.sessionTitle { session.label = title }
         let previous = session.status
         change(&session)
         if session.status != previous { session.statusSince = now }
         if event.name == "UserPromptSubmit" {
             session.workStartedAt = now
             session.toolUses = 0
+            session.unseen = false
         } else if session.workStartedAt == nil, session.status == .working {
             session.workStartedAt = now
         }

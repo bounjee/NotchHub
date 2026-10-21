@@ -11,6 +11,9 @@ struct HookEvent: Sendable {
     var name: String
     var sessionID: String
     var cwd: String
+    /// Git repository (or folder) name worked out by notch-hook; nil for scratch folders.
+    var project: String?
+    var sessionTitle: String?
     var toolName: String?
     var toolInputKey: String?
     var toolSummary: String?
@@ -27,6 +30,8 @@ struct HookEvent: Sendable {
     var sevenDay: UsageWindow?
     /// Claude Code and the processes above it, for jumping to the session's terminal.
     var ancestors: [ProcessTree.Entry] = []
+    /// From `claude -p` (scripts, other apps): not a conversation, so not shown.
+    var isHeadless = false
 
     /// Events after which the terminal is looked up; tool events skip it to stay cheap.
     static let locatingEvents: Set<String> = ["SessionStart", "UserPromptSubmit", "PermissionRequest", "Stop", "Notification"]
@@ -44,6 +49,8 @@ struct HookEvent: Sendable {
         else { return nil }
         self.init(name: name, sessionID: sessionID, cwd: object["cwd"] as? String ?? "")
 
+        project = (object["notchhub_project"] as? String).flatMap { $0.isEmpty ? nil : $0 }
+        sessionTitle = (object["session_title"] as? String).flatMap { $0.isEmpty ? nil : $0 }
         toolName = object["tool_name"] as? String
         toolUseID = object["tool_use_id"] as? String
         if let input = object["tool_input"] {
@@ -71,6 +78,7 @@ struct HookEvent: Sendable {
         if let parent = (object["notchhub_ppid"] as? NSNumber)?.int32Value, parent > 1,
            isStatusLine || Self.locatingEvents.contains(name) {
             ancestors = ProcessTree.ancestors(of: parent)
+            isHeadless = !isStatusLine && ProcessTree.isHeadlessClaude(ancestors)
         }
     }
 

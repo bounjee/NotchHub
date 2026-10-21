@@ -11,6 +11,32 @@ let socketPath = ProcessInfo.processInfo.environment["NOTCHHUB_SOCKET"]
     ?? FileManager.default.homeDirectoryForCurrentUser
         .appendingPathComponent("Library/Application Support/NotchHub/hub.sock").path
 
+/// The project a directory belongs to: its git repository (the main one, for worktrees),
+/// else the folder itself. Nil for temporary and scratch folders, whose names mean nothing.
+/// Computed here because the hook runs as Claude Code, which can already read the folder.
+func projectName(for cwd: String) -> String? {
+    guard !cwd.isEmpty else { return nil }
+    let temporary = ["/private/tmp/", "/tmp/", "/private/var/folders/", "/var/folders/"]
+    if cwd.contains("/scratch-workspaces/") || temporary.contains(where: cwd.hasPrefix) { return nil }
+    var url = URL(fileURLWithPath: cwd).standardizedFileURL
+    while url.path != "/" {
+        let git = url.appendingPathComponent(".git")
+        var isDirectory: ObjCBool = false
+        if FileManager.default.fileExists(atPath: git.path, isDirectory: &isDirectory) {
+            // In a worktree ".git" is a file: "gitdir: <main repo>/.git/worktrees/<name>".
+            if !isDirectory.boolValue, let text = try? String(contentsOf: git, encoding: .utf8),
+               let pointer = text.split(separator: "\n").first(where: { $0.hasPrefix("gitdir:") }),
+               let marker = pointer.range(of: "/.git/") {
+                let main = pointer[pointer.index(pointer.startIndex, offsetBy: 7)..<marker.lowerBound]
+                return URL(fileURLWithPath: main.trimmingCharacters(in: .whitespaces)).lastPathComponent
+            }
+            return url.lastPathComponent
+        }
+        url.deleteLastPathComponent()
+    }
+    return URL(fileURLWithPath: cwd).lastPathComponent
+}
+
 let isStatusLine = CommandLine.arguments.contains("--statusline")
 let input = FileHandle.standardInput.readDataToEndOfFile()
 guard let event = try? JSONSerialization.jsonObject(with: input) as? [String: Any], !event.isEmpty else { exit(0) }
@@ -24,6 +50,13 @@ var line = Data(input.map { $0 == 0x0A || $0 == 0x0D ? 0x20 : $0 })
 if let brace = line.firstIndex(of: UInt8(ascii: "{")) {
     var extra = #""notchhub_ppid":\#(getppid()),"#
     if isStatusLine { extra += #""hook_event_name":"NotchHubStatusLine","# }
+    // Tool events are the most frequent; the app already knows the project by then.
+    let name = event["hook_event_name"] as? String ?? ""
+    if !name.hasSuffix("ToolUse"), !name.hasSuffix("ToolUseFailure"),
+       let project = projectName(for: event["cwd"] as? String ?? ""),
+       let encoded = try? JSONEncoder().encode(project), let quoted = String(data: encoded, encoding: .utf8) {
+        extra += #""notchhub_project":"# + quoted + ","
+    }
     line.insert(contentsOf: Data(extra.utf8), at: line.index(after: brace))
 }
 line.append(0x0A)

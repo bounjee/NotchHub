@@ -28,6 +28,37 @@ enum ProcessTree {
         return Entry(pid: pid, parent: info.kp_eproc.e_ppid, tty: tty)
     }
 
+    /// Command-line arguments of a process (same user only).
+    static func arguments(of pid: pid_t) -> [String] {
+        var mib: [Int32] = [CTL_KERN, KERN_PROCARGS2, pid]
+        var size = 0
+        guard sysctl(&mib, 3, nil, &size, nil, 0) == 0, size > 4 else { return [] }
+        var buffer = [UInt8](repeating: 0, count: size)
+        guard sysctl(&mib, 3, &buffer, &size, nil, 0) == 0, size > 4 else { return [] }
+        // Layout: argc (Int32), executable path, NUL padding, then the NUL-separated arguments.
+        let argc = Int(buffer.withUnsafeBytes { $0.load(as: Int32.self) })
+        var index = 4
+        while index < size, buffer[index] != 0 { index += 1 }
+        while index < size, buffer[index] == 0 { index += 1 }
+        var arguments: [String] = []
+        while arguments.count < argc, index < size {
+            let start = index
+            while index < size, buffer[index] != 0 { index += 1 }
+            arguments.append(String(decoding: buffer[start..<index], as: UTF8.self))
+            index += 1
+        }
+        return arguments
+    }
+
+    /// Whether a Claude Code process among the nearest ancestors runs headless (`claude -p`).
+    static func isHeadlessClaude(_ ancestors: [Entry]) -> Bool {
+        ancestors.prefix(3).contains { entry in
+            let arguments = Self.arguments(of: entry.pid)
+            guard arguments.contains(where: { $0.lowercased().contains("claude") }) else { return false }
+            return arguments.contains { $0 == "-p" || $0 == "--print" || $0.hasPrefix("--print=") }
+        }
+    }
+
     /// The process and its ancestors, nearest first, stopping before launchd.
     static func ancestors(of pid: pid_t, limit: Int = 24) -> [Entry] {
         var chain: [Entry] = []

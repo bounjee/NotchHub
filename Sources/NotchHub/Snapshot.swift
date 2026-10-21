@@ -53,6 +53,13 @@ enum Snapshot {
         capture("4-open-claude")
 
         claude.answer(claude.pending[0].id, .allow)
+        for (id, project) in [("c", "studio"), ("d", "basitce")] {
+            send(["hook_event_name": "UserPromptSubmit", "session_id": id, "cwd": "/Users/me/code/\(project)", "notchhub_project": project])
+            send(["hook_event_name": "PreToolUse", "session_id": id, "cwd": "/Users/me/code/\(project)", "tool_name": "Bash",
+                  "tool_input": ["command": "npm run build"], "tool_use_id": "t-\(id)"])
+        }
+        send(["hook_event_name": "Stop", "session_id": "d", "cwd": "/Users/me/code/basitce", "background_tasks": [],
+              "last_assistant_message": "## Evren #0003 hazır\n\n**Milli Piyango** videosu 71 sn, render bitti."])
         capture("5-open-claude-done")
 
         shelf.add(["/Applications/Safari.app", "/System/Applications/Notes.app", NSHomeDirectory() + "/Desktop", "/etc/hosts"].map(URL.init(fileURLWithPath:)))
@@ -87,6 +94,8 @@ enum Snapshot {
         capture("15-compact-charged")
         model.showPeek(.claudeDone("dolphydesk"), hovering: false)
         capture("18-compact-done")
+        model.close()
+        capture("21-closed-multi")
         model.showPeek(.usage(80), hovering: false)
         capture("19-compact-usage")
         model.showPeek(.downloaded("NotchHub-1.2.dmg"), hovering: false)

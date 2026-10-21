@@ -4,7 +4,7 @@ import Testing
 @testable import NotchHub
 
 private func hook(_ name: String, _ fields: [String: Any] = [:], session: String = "s1") -> HookEvent {
-    var object: [String: Any] = ["hook_event_name": name, "session_id": session, "cwd": "/tmp/project"]
+    var object: [String: Any] = ["hook_event_name": name, "session_id": session, "cwd": "/Users/me/code/project"]
     object.merge(fields) { $1 }
     return HookEvent(json: try! JSONSerialization.data(withJSONObject: object))!
 }
@@ -61,11 +61,35 @@ private func makeModel() -> NotchModel {
         #expect(model.tab == .claude)
     }
 
-    @Test func claudeFinishingOnlyMakesTheMascotHop() {
+    @Test func finishingAnnouncesTheProjectBriefly() {
         let model = makeModel()
         model.showPeek(.claudeDone("dolphydesk"), hovering: false)
-        #expect(model.presentation == .closed)
+        #expect(model.presentation == .compact)
+        #expect(model.peek == .claudeDone("dolphydesk"))
+        #expect(model.lastFinished == "dolphydesk")
         #expect(model.claudeCelebration == 1)
+        // Sized to the name, never the full-width banner.
+        #expect(model.compactWingWidth < 200)
+    }
+
+    @Test func simultaneousFinishesAreAnnouncedInTurn() async throws {
+        let model = makeModel()
+        model.showPeek(.claudeDone("a"), hovering: false)
+        model.showPeek(.claudeDone("b"), hovering: false)
+        #expect(model.peek == .claudeDone("a"))
+        try await Task.sleep(for: .milliseconds(3300))
+        #expect(model.peek == .claudeDone("b"))
+    }
+
+    @Test func openingThePanelMarksFinishedTurnsSeen() {
+        let model = makeModel()
+        model.claude.handle(hook("UserPromptSubmit"))
+        model.claude.handle(hook("PreToolUse", ["tool_name": "Bash", "tool_input": ["command": "ls"], "tool_use_id": "t"]))
+        model.claude.handle(hook("Stop", ["background_tasks": []]))
+        #expect(model.claude.indicator == ClosedIndicator(kind: .done, count: 1))
+        model.open()
+        #expect(model.claude.indicator == nil)
+        #expect(model.claude.sessions["s1"]?.status == .done)
     }
 
     @Test func closedContentStaysRightOfTheNotch() {

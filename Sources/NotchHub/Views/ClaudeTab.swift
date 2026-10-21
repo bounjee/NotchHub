@@ -3,7 +3,6 @@ import SwiftUI
 
 struct ClaudeTab: View {
     let store: ClaudeStore
-    @State private var expanded: ClaudeSession.ID?
 
     var body: some View {
         if store.sessions.isEmpty && store.pending.isEmpty {
@@ -38,20 +37,14 @@ struct ClaudeTab: View {
                     ForEach(store.sortedSessions.filter { session in !store.pending.contains { $0.sessionID == session.id } }) { session in
                         SessionRow(
                             session: session,
-                            isExpanded: expanded == session.id || (expanded == nil && session.id == defaultExpanded),
-                            toggle: { withAnimation(.snappy) { expanded = expanded == session.id ? "" : session.id } },
                             jump: session.terminal == nil ? nil : { store.jumpToTerminal(session.id) },
                             dismiss: { withAnimation(.snappy) { store.dismiss(session.id) } }
                         )
+                        .transition(.opacity.combined(with: .move(edge: .top)))
                     }
                 }
             }
         }
-    }
-
-    /// The most recent finished session shows its answer without a click.
-    private var defaultExpanded: ClaudeSession.ID? {
-        store.sortedSessions.first { $0.status == .done && $0.lastMessage != nil }?.id
     }
 }
 
@@ -64,7 +57,9 @@ private struct PermissionCard: View {
     var body: some View {
         VStack(alignment: .leading, spacing: 8) {
             HStack(spacing: 6) {
-                ClawdView(status: .needsApproval, pixel: 1)
+                Image(systemName: "hand.raised.fill")
+                    .foregroundStyle(Color.claude)
+                    .symbolEffect(.pulse, options: .repeating)
                 Text("İzin gerekiyor").fontWeight(.semibold)
                 Text("· \(sessionLabel)").foregroundStyle(.secondary)
                 Spacer()
@@ -121,140 +116,106 @@ private struct PermissionCard: View {
     }
 }
 
+/// One line per session, like the rows of a list: click it to go to its terminal.
 private struct SessionRow: View {
     let session: ClaudeSession
-    let isExpanded: Bool
-    let toggle: () -> Void
     let jump: (() -> Void)?
     let dismiss: () -> Void
-    @State private var copied = false
     @State private var hovering = false
-    /// The answer starts as a short preview; the full text is one click away.
-    @State private var showsFullMessage = false
+    @State private var copied = false
 
     /// Claude is waiting on the user, so the way to its terminal stays visible.
     private var needsYou: Bool { session.status == .waitingForUser || session.status == .needsApproval }
+    private var isFinished: Bool { session.status == .done || session.status == .error }
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 8) {
-            // Buttons must not sit inside another button: the outer one swallows their clicks.
-            HStack(spacing: 10) {
-                HStack(spacing: 10) {
-                    StatusIndicator(status: session.status)
-                        .frame(width: 16)
-                    VStack(alignment: .leading, spacing: 2) {
-                        HStack(spacing: 6) {
-                            Text(session.label).font(.system(size: 13, weight: .semibold))
-                            Text(session.status.title).font(.system(size: 12)).foregroundStyle(session.status.tint)
-                        }
-                        if let detail = session.currentTool ?? (isExpanded ? nil : session.lastMessage) {
-                            Text(detail.replacingOccurrences(of: "\n", with: " "))
-                                .font(.system(size: 11, design: session.currentTool != nil ? .monospaced : .default))
-                                .foregroundStyle(.secondary)
-                                .lineLimit(1)
-                        }
-                    }
-                    Spacer(minLength: 8)
-                    TimelineView(.periodic(from: .now, by: 1)) { context in
-                        Text(shortElapsed(from: session.statusSince, to: context.date))
-                            .font(.system(size: 11).monospacedDigit())
-                            .foregroundStyle(.tertiary)
+        HStack(spacing: 10) {
+            StatusIndicator(status: session.status)
+                .frame(width: 16)
+            VStack(alignment: .leading, spacing: 2) {
+                HStack(spacing: 6) {
+                    Text(session.label).font(.system(size: 13, weight: .semibold)).lineLimit(1)
+                    Text(session.status.title).font(.system(size: 12)).foregroundStyle(session.status.tint).fixedSize()
+                    if session.unseen {
+                        Circle().fill(session.status.tint).frame(width: 5, height: 5)
+                            .help("Henüz bakmadın")
                     }
                 }
-                .contentShape(Rectangle())
-                .onTapGesture(perform: toggle)
-
-                if let jump, hovering || needsYou {
-                    Button(action: jump) {
-                        Image(systemName: "arrow.up.forward.app")
-                            .font(.system(size: 12, weight: .semibold))
-                            .frame(width: 22, height: 22)
-                            .contentShape(Rectangle())
-                    }
-                    .buttonStyle(.plain)
-                    .foregroundStyle(needsYou ? AnyShapeStyle(session.status.tint) : AnyShapeStyle(.secondary))
-                    .help("Terminale git")
-                    .transition(.opacity)
-                }
-                if hovering && (session.status == .done || session.status == .error) {
-                    Button(action: dismiss) {
-                        Image(systemName: "xmark")
-                            .font(.system(size: 9, weight: .bold))
-                            .frame(width: 18, height: 22)
-                            .contentShape(Rectangle())
-                    }
-                    .buttonStyle(.plain)
+                Text(detail)
+                    .font(.system(size: 11, design: session.currentTool != nil && !isFinished ? .monospaced : .default))
                     .foregroundStyle(.secondary)
-                    .help("Listeden kaldır")
-                }
+                    .lineLimit(1)
+                    .truncationMode(.tail)
             }
-
-            if isExpanded, let message = session.lastMessage {
-                VStack(alignment: .leading, spacing: 6) {
-                    if showsFullMessage {
-                        AutoScroll(maxHeight: 170) { messageText(message) }
-                    } else {
-                        messageText(Self.preview(message))
-                            .lineLimit(3)
-                    }
-                    HStack(spacing: 8) {
-                        if Self.preview(message) != message || message.count > 220 {
-                            Button(showsFullMessage ? "Daralt" : "Tamamını göster") {
-                                withAnimation(.snappy) { showsFullMessage.toggle() }
-                            }
-                            .buttonStyle(.plain)
-                            .font(.system(size: 11, weight: .medium))
-                            .foregroundStyle(Color.accentColor)
-                        }
-                        Spacer()
-                        if let jump {
-                            Button(action: jump) { Label("Terminale git", systemImage: "arrow.up.forward.app") }
-                                .buttonStyle(PillButtonStyle(kind: .secondary))
-                        }
-                        Button {
+            Spacer(minLength: 8)
+            if hovering {
+                HStack(spacing: 2) {
+                    if isFinished, let message = session.lastMessage {
+                        iconButton(copied ? "checkmark" : "doc.on.doc", help: "Cevabı kopyala") {
                             NSPasteboard.general.clearContents()
                             NSPasteboard.general.setString(message, forType: .string)
-                            copied = true
+                            withAnimation(.snappy) { copied = true }
                             Task { try? await Task.sleep(for: .seconds(1.5)); copied = false }
-                        } label: {
-                            Label(copied ? "Kopyalandı" : "Kopyala", systemImage: copied ? "checkmark" : "doc.on.doc")
-                                .contentTransition(.symbolEffect(.replace))
                         }
-                        .buttonStyle(PillButtonStyle(kind: .secondary))
                     }
+                    if let jump { iconButton("arrow.up.forward.app", help: "Terminale git", action: jump) }
+                    if isFinished { iconButton("xmark", help: "Listeden kaldır", action: dismiss) }
                 }
-                .transition(.opacity.combined(with: .move(edge: .top)))
+                .transition(.opacity)
+            } else if let jump, needsYou {
+                iconButton("arrow.up.forward.app", help: "Terminale git", tint: session.status.tint, action: jump)
+            } else {
+                TimelineView(.periodic(from: .now, by: 1)) { context in
+                    Text(shortElapsed(from: session.statusSince, to: context.date))
+                        .font(.system(size: 11).monospacedDigit())
+                        .foregroundStyle(.tertiary)
+                }
             }
         }
         .padding(10)
-        .background(RoundedRectangle(cornerRadius: 12, style: .continuous).fill(Color.cardFill))
-        .onHover { hovering = $0 }
+        .background(RoundedRectangle(cornerRadius: 12, style: .continuous).fill(hovering && jump != nil ? .white.opacity(0.1) : Color.cardFill))
+        .contentShape(RoundedRectangle(cornerRadius: 12))
+        .onTapGesture { jump?() }
+        .onHover { isHovering in withAnimation(.snappy(duration: 0.15)) { hovering = isHovering } }
+        .help(isFinished ? (session.lastMessage ?? "") : (jump == nil ? "" : "Tıkla: terminale git"))
     }
 
-    private func messageText(_ text: String) -> some View {
-        Text(Self.markdown(text))
-            .font(.system(size: 12.5))
-            .foregroundStyle(.white.opacity(0.88))
-            .lineSpacing(2)
-            .textSelection(.enabled)
-            .frame(maxWidth: .infinity, alignment: .leading)
-            .fixedSize(horizontal: false, vertical: true)
+    /// The second line: the current tool while working, the answer's first line when finished.
+    private var detail: String {
+        switch session.status {
+        case .working, .needsApproval:
+            return session.currentTool ?? "Düşünüyor…"
+        case .waitingForUser:
+            return session.lastMessage.map(Self.firstLine) ?? "Cevabını bekliyor"
+        case .done, .error:
+            return session.lastMessage.map(Self.firstLine) ?? session.status.title
+        case .idle:
+            return "Hazır"
+        }
     }
 
-    /// The first paragraph, without blank lines, headings markers or code fences.
-    static func preview(_ text: String) -> String {
-        let lines = text.components(separatedBy: .newlines)
+    /// First meaningful line of a Markdown answer, without its markup.
+    static func firstLine(_ text: String) -> String {
+        let line = text.components(separatedBy: .newlines)
             .map { $0.trimmingCharacters(in: .whitespaces) }
-            .filter { !$0.isEmpty && !$0.hasPrefix("```") }
-            .map { $0.replacingOccurrences(of: #"^#+\s*"#, with: "", options: .regularExpression) }
-        return lines.prefix(3).joined(separator: "\n")
+            .first { !$0.isEmpty && !$0.hasPrefix("```") } ?? ""
+        return line
+            .replacingOccurrences(of: #"^#+\s*|^[-*]\s+"#, with: "", options: .regularExpression)
+            .replacingOccurrences(of: "**", with: "")
+            .replacingOccurrences(of: "`", with: "")
     }
 
-    static func markdown(_ text: String) -> AttributedString {
-        (try? AttributedString(markdown: text, options: .init(interpretedSyntax: .inlineOnlyPreservingWhitespace)))
-            ?? AttributedString(text)
+    private func iconButton(_ symbol: String, help: String, tint: Color? = nil, action: @escaping () -> Void) -> some View {
+        Button(action: action) {
+            Image(systemName: symbol)
+                .font(.system(size: 11.5, weight: .semibold))
+                .frame(width: 24, height: 24)
+                .contentShape(Rectangle())
+        }
+        .buttonStyle(.plain)
+        .foregroundStyle(tint.map { AnyShapeStyle($0) } ?? AnyShapeStyle(.secondary))
+        .help(help)
     }
-
 }
 
 func shortElapsed(from start: Date, to now: Date) -> String {

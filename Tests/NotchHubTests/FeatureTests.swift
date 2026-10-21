@@ -177,3 +177,119 @@ private func statusLine(five: Double?, resets: Date, week: Double? = nil) -> Hoo
         #expect(Shelf(storeURL: store).items.count == 1)
     }
 }
+
+
+@MainActor @Suite struct MultiSessionTests {
+    private func event(_ name: String, _ session: String, cwd: String = "/Users/me/code/app", extra: [String: Any] = [:]) -> HookEvent {
+        var object: [String: Any] = ["hook_event_name": name, "session_id": session, "cwd": cwd]
+        object.merge(extra) { $1 }
+        return HookEvent(json: try! JSONSerialization.data(withJSONObject: object))!
+    }
+
+    private func work(_ store: ClaudeStore, _ session: String) {
+        store.handle(event("UserPromptSubmit", session))
+        store.handle(event("PreToolUse", session, extra: ["tool_name": "Bash", "tool_input": ["command": "ls"], "tool_use_id": "t-\(session)"]))
+    }
+
+    @Test func projectNamesWinOverFolders() {
+        let store = ClaudeStore()
+        store.handle(event("SessionStart", "a", cwd: "/Users/me/code/app/src/deep", extra: ["notchhub_project": "app"]))
+        #expect(store.sessions["a"]?.label == "app")
+        // First seen through a tool event (no project yet), improved by the next lifecycle event.
+        store.handle(event("PreToolUse", "b", cwd: "/Users/me/repo/.claude/worktrees/fix-1", extra: ["tool_name": "Bash", "tool_input": ["command": "ls"], "tool_use_id": "x"]))
+        #expect(store.sessions["b"]?.label == "fix-1")
+        store.handle(event("UserPromptSubmit", "b", cwd: "/Users/me/repo/.claude/worktrees/fix-1", extra: ["notchhub_project": "repo"]))
+        #expect(store.sessions["b"]?.label == "repo")
+    }
+
+    @Test func scratchFoldersUseTheSessionTitle() {
+        let store = ClaudeStore()
+        let scratch = "/Users/me/Library/Application Support/Claude/scratch-workspaces/x/y/scratch-2026"
+        store.handle(event("SessionStart", "a", cwd: scratch))
+        #expect(store.sessions["a"]?.label == "Claude")
+        store.handle(event("UserPromptSubmit", "a", cwd: scratch, extra: ["session_title": "Notch uygulaması"]))
+        #expect(store.sessions["a"]?.label == "Notch uygulaması")
+    }
+
+    @Test func closedIndicatorCountsTheMostUrgentKind() {
+        let store = ClaudeStore()
+        #expect(store.indicator == nil)
+        work(store, "a")
+        work(store, "b")
+        #expect(store.indicator == ClosedIndicator(kind: .working, count: 2))
+        store.handle(event("Stop", "a", extra: ["background_tasks": []]))
+        #expect(store.indicator == ClosedIndicator(kind: .working, count: 1))
+        store.handle(event("Stop", "b", extra: ["background_tasks": []]))
+        #expect(store.indicator == ClosedIndicator(kind: .done, count: 2))
+        store.handle(event("PermissionRequest", "c", extra: ["tool_name": "Bash", "tool_input": ["command": "rm"]]), responder: RecordingResponder())
+        #expect(store.indicator == ClosedIndicator(kind: .needsApproval, count: 1))
+        store.markSeen()
+        store.answer(store.pending[0].id, .deny)
+        #expect(store.indicator == ClosedIndicator(kind: .working, count: 1))
+    }
+
+    @Test func listPutsWhatNeedsYouFirstThenRecentlyFinished() {
+        let store = ClaudeStore()
+        let start = Date()
+        store.handle(event("UserPromptSubmit", "old"), now: start)
+        store.handle(event("PreToolUse", "old", extra: ["tool_name": "Bash", "tool_input": ["command": "ls"], "tool_use_id": "o"]), now: start)
+        store.handle(event("Stop", "old", extra: ["background_tasks": []]), now: start.addingTimeInterval(10))
+        store.handle(event("UserPromptSubmit", "new"), now: start)
+        store.handle(event("PreToolUse", "new", extra: ["tool_name": "Bash", "tool_input": ["command": "ls"], "tool_use_id": "n"]), now: start)
+        store.handle(event("Stop", "new", extra: ["background_tasks": []]), now: start.addingTimeInterval(20))
+        store.handle(event("UserPromptSubmit", "busy"), now: start.addingTimeInterval(5))
+        store.handle(event("Notification", "asks", extra: ["notification_type": "idle_prompt"]), now: start.addingTimeInterval(1))
+        #expect(store.sortedSessions.map(\.id) == ["asks", "busy", "new", "old"])
+    }
+
+    @Test func eachFinishNamesItsProject() {
+        let store = ClaudeStore()
+        var peeks: [PeekReason] = []
+        store.onPeek = { peeks.append($0) }
+        store.handle(event("SessionStart", "a", extra: ["notchhub_project": "dolphydesk"]))
+        work(store, "a")
+        store.handle(event("Stop", "a", extra: ["background_tasks": []]))
+        #expect(peeks == [.claudeDone("dolphydesk")])
+    }
+}
+
+/// Not on the main actor: it waits for child processes, which would stall timing tests.
+@Suite struct HeadlessTests {
+    private func spawnFakeClaude(_ arguments: [String]) throws -> Process {
+        let dir = FileManager.default.temporaryDirectory.appendingPathComponent("fake-\(UUID().uuidString.prefix(6))")
+        try FileManager.default.createDirectory(at: dir, withIntermediateDirectories: true)
+        let script = dir.appendingPathComponent("claude")
+        try "#!/bin/sh\nsleep 5\n".write(to: script, atomically: true, encoding: .utf8)
+        try FileManager.default.setAttributes([.posixPermissions: 0o755], ofItemAtPath: script.path)
+        let process = Process()
+        process.executableURL = script
+        process.arguments = arguments
+        try process.run()
+        Thread.sleep(forTimeInterval: 0.2)
+        return process
+    }
+
+    @Test func recognisesClaudeDashP() throws {
+        let headless = try spawnFakeClaude(["-p", "say hi"])
+        defer { headless.terminate() }
+        let interactive = try spawnFakeClaude(["--model", "haiku"])
+        defer { interactive.terminate() }
+        #expect(ProcessTree.arguments(of: headless.processIdentifier).contains("-p"))
+        #expect(ProcessTree.isHeadlessClaude([ProcessTree.Entry(pid: headless.processIdentifier, parent: 1, tty: nil)]))
+        #expect(!ProcessTree.isHeadlessClaude([ProcessTree.Entry(pid: interactive.processIdentifier, parent: 1, tty: nil)]))
+    }
+
+    @MainActor @Test func headlessSessionsStayHidden() {
+        let store = ClaudeStore()
+        var start = HookEvent(json: Data(#"{"hook_event_name":"UserPromptSubmit","session_id":"h","cwd":"/Users/me/x"}"#.utf8))!
+        start.isHeadless = true
+        store.handle(start)
+        store.handle(HookEvent(json: Data(#"{"hook_event_name":"PreToolUse","session_id":"h","tool_name":"Bash","tool_input":{"command":"ls"},"tool_use_id":"1"}"#.utf8))!)
+        let responder = RecordingResponder()
+        store.handle(HookEvent(json: Data(#"{"hook_event_name":"PermissionRequest","session_id":"h","tool_name":"Bash","tool_input":{"command":"rm"}}"#.utf8))!, responder: responder)
+        #expect(store.sessions.isEmpty)
+        #expect(store.pending.isEmpty)
+        #expect(responder.replies == [#"{"decision":"none"}"#])
+        #expect(store.indicator == nil)
+    }
+}

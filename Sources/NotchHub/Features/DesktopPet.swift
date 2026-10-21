@@ -374,7 +374,7 @@ final class DesktopPet {
             wake(greeting: nil)
             view.sprite.hop(twice: true)
             view.blushFor(2.5)
-            view.say("Bitti! ✓")
+            view.say("\(model.lastFinished ?? "Claude") bitti ✓")
         }
         let status = model.claude.headlineStatus
         if lastStatus != .some(status), status == .needsApproval {

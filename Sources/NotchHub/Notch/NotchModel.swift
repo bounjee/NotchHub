@@ -52,7 +52,10 @@ enum PeekReason: Equatable {
     /// app menus reach the notch there.
     var wingWidth: CGFloat {
         switch self {
-        case .copied, .claudeDone, .downloaded: 190
+        case .claudeDone(let label):
+            // "✓ <project> bitti", sized to the name.
+            min(240, 92 + (label as NSString).size(withAttributes: [.font: NSFont.systemFont(ofSize: 11.5, weight: .semibold)]).width)
+        case .copied, .downloaded: 190
         case .screenshot: 200
         case .power, .lowBattery, .charged: 150
         case .usage: 170
@@ -87,8 +90,11 @@ final class NotchModel {
     /// A drag with files or text is near the notch; the panel shows drop zones.
     var drag: DragKind?
     private(set) var peek: PeekReason?
-    /// Bumped when a Claude session finishes; the mascot hops in place instead of a banner.
+    /// Bumped when a Claude session finishes (the desktop mascot hops).
     private(set) var claudeCelebration = 0
+    /// Project of the most recently finished session.
+    private(set) var lastFinished: String?
+    private var queuedPeeks: [PeekReason] = []
     /// Bumped when something lands on the notch, drives a small bounce.
     private(set) var dropCount = 0
 
@@ -125,6 +131,8 @@ final class NotchModel {
         if presentation != .open { tab = requested ?? defaultTab }
         else if let requested { tab = requested }
         presentation = .open
+        queuedPeeks.removeAll()
+        claude.markSeen()
     }
 
     func close() {
@@ -137,9 +145,11 @@ final class NotchModel {
     /// Shows a peek for a few seconds. Never interrupts a panel the user opened,
     /// and a compact activity never replaces an open Claude peek.
     func showPeek(_ reason: PeekReason, hovering: Bool) {
-        if case .claudeDone = reason {
+        if case .claudeDone(let label) = reason {
             claudeCelebration += 1
-            return
+            lastFinished = label
+            // Several sessions can finish together: announce each one in turn.
+            if case .claudeDone = peek { queuedPeeks.append(reason); return }
         }
         guard !hovering, drag == nil else { return }
         if presentation == .open && peek == nil { return }
@@ -150,6 +160,7 @@ final class NotchModel {
         if reason.opensPanel {
             tab = .claude
             presentation = .open
+            claude.markSeen()
         } else {
             presentation = .compact
         }
@@ -166,10 +177,16 @@ final class NotchModel {
         peekTask?.cancel()
         peek = nil
         presentation = .open
+        claude.markSeen()
     }
 
     private func endPeek() {
         peek = nil
+        if !queuedPeeks.isEmpty, presentation == .compact {
+            showPeek(queuedPeeks.removeFirst(), hovering: false)
+            return
+        }
+        queuedPeeks.removeAll()
         if !isPinnedOpen { presentation = .closed }
     }
 

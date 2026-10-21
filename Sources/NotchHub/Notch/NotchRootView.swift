@@ -71,7 +71,11 @@ struct NotchRootView: View {
     static func wings(_ model: NotchModel) -> (left: CGFloat, right: CGFloat) {
         if model.presentation == .compact { return (closedTopRadius, model.compactWingWidth) }
         let lift = model.isHoverPrimed ? hoverLift.width : 0
-        let right = model.claude.headlineStatus == nil ? closedTopRadius : 42
+        let right: CGFloat = switch model.claude.indicator {
+        case nil: closedTopRadius
+        case let indicator? where indicator.count > 1: 44
+        default: 30
+        }
         return (closedTopRadius + lift, right + lift)
     }
 
@@ -144,7 +148,7 @@ struct NotchRootView: View {
             }
             return true
         }
-        .animation(.notchOpen, value: model.claude.headlineStatus)
+        .animation(.notchOpen, value: model.claude.indicator)
         .animation(.spring(response: 0.36, dampingFraction: 0.74), value: model.isHoverPrimed)
         .animation(.smooth(duration: 0.4), value: needsAttention)
     }
@@ -204,10 +208,10 @@ struct NotchRootView: View {
             let wings = Self.wings(model)
             HStack(spacing: 0) {
                 Color.clear.frame(width: model.notchSize.width + wings.left - topRadius)
-                if let status = model.claude.headlineStatus {
-                    ClawdView(status: status, celebration: model.claudeCelebration, pixel: 1.25, fidgets: true)
+                if let indicator = model.claude.indicator {
+                    ClosedIndicatorView(indicator: indicator)
                         .frame(width: wings.right - topRadius)
-                        .padding(.top, 2)
+                        .transition(.scale(scale: 0.4).combined(with: .opacity))
                 }
             }
             .frame(height: Self.closedHeight(model))
@@ -286,6 +290,7 @@ private struct CompactActivity: View {
                 icon("checkmark.circle.fill", .green)
                 title(label)
                 detail("bitti")
+                    .layoutPriority(2)
             case .screenshot(let path):
                 FileThumbnail(path: path, size: 20)
                 title("Ekran görüntüsü")
@@ -435,28 +440,73 @@ private struct TabContent: View {
     }
 }
 
-/// Most urgent Claude session, shown left of the notch while open.
+/// Session summary left of the tabs: the session itself when there is one, counts otherwise.
 private struct ClaudeHeadline: View {
     let store: ClaudeStore
 
     var body: some View {
-        if let session = store.sortedSessions.first(where: { $0.status == store.headlineStatus }) {
+        let sessions = store.sortedSessions
+        if let first = sessions.first {
             HStack(spacing: 7) {
-                ClawdView(status: session.status, pixel: 0.95)
-                Text(session.label)
-                    .font(.system(size: 12, weight: .semibold))
-                    .foregroundStyle(.white.opacity(0.85))
-                    .lineLimit(1)
-                    .truncationMode(.tail)
-                Text(session.status.title)
-                    .font(.system(size: 12))
-                    .foregroundStyle(session.status.tint)
-                    .lineLimit(1)
-                    .fixedSize()
-                    .contentTransition(.opacity)
+                StatusIndicator(status: first.status)
+                if sessions.count == 1 {
+                    Text(first.label)
+                        .font(.system(size: 12, weight: .semibold))
+                        .foregroundStyle(.white.opacity(0.85))
+                        .lineLimit(1)
+                    Text(first.status.title)
+                        .font(.system(size: 12))
+                        .foregroundStyle(first.status.tint)
+                        .lineLimit(1)
+                        .fixedSize()
+                } else {
+                    Text(Self.summary(sessions))
+                        .font(.system(size: 12, weight: .medium))
+                        .foregroundStyle(.white.opacity(0.85))
+                        .lineLimit(1)
+                }
             }
-            .animation(.smooth, value: session.status)
+            .animation(.smooth, value: first.status)
         }
+    }
+
+    /// "2 çalışıyor · 1 bitti", most urgent first.
+    static func summary(_ sessions: [ClaudeSession]) -> String {
+        var counts: [SessionStatus: Int] = [:]
+        for session in sessions { counts[session.status, default: 0] += 1 }
+        return counts.keys.sorted { ClaudeStore.urgency($0) < ClaudeStore.urgency($1) }
+            .map { "\(counts[$0]!) \($0.title.lowercased(with: Locale(identifier: "tr")))" }
+            .joined(separator: " · ")
+    }
+}
+
+/// The closed notch's status: one glyph for the most urgent activity, with a count.
+private struct ClosedIndicatorView: View {
+    let indicator: ClosedIndicator
+
+    var body: some View {
+        HStack(spacing: 4) {
+            switch indicator.kind {
+            case .working:
+                LayerSpinner(color: NSColor(Color.claude))
+            case .needsApproval:
+                LayerPulseDot(color: NSColor(Color.claude))
+            case .waitingForUser:
+                Circle().fill(.blue).frame(width: 7, height: 7)
+            case .error:
+                Image(systemName: "exclamationmark.triangle.fill").font(.system(size: 10)).foregroundStyle(.red)
+            default:
+                Image(systemName: "checkmark.circle.fill").font(.system(size: 12)).foregroundStyle(.green)
+            }
+            if indicator.count > 1 {
+                Text("\(indicator.count)")
+                    .font(.system(size: 10.5, weight: .semibold).monospacedDigit())
+                    .foregroundStyle(.white.opacity(0.75))
+                    .contentTransition(.numericText())
+            }
+        }
+        .id(indicator.kind)
+        .transition(.scale(scale: 0.5).combined(with: .opacity))
     }
 }
 
