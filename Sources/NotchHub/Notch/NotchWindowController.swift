@@ -191,7 +191,12 @@ final class NotchWindowController {
             if !model.isOpen, screen != nil, hoverRect().contains(location) {
                 openTask?.cancel()
                 openTask = nil
-                withAnimation(.notchOpen) { model.open() }
+                // While recording, the red dot is a stop button: one click ends the recording.
+                if model.capture.isRecording {
+                    model.capture.stopRecording()
+                } else {
+                    withAnimation(.notchOpen) { model.open() }
+                }
                 haptic(force: true)
             }
         case .leftMouseDragged:

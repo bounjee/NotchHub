@@ -68,7 +68,7 @@ Hover over the notch or click it to open the panel. Switch between them with the
 <p align="center"><img src="docs/open-capture.png" width="640" alt="The capture tab"></p>
 
 - **Screenshots go straight to the clipboard.** Pick an area, a window or the full screen, then paste it anywhere. The panel steps out of the way first, so it's never in the picture.
-- **Record the screen or one window.** While recording, the notch shows a red dot and the time; stop it from the Capture tab or the menu bar menu.
+- **Record the screen or one window.** While recording, the notch shows a red dot and the time. Click the notch to stop, or use the Capture tab or the menu bar menu.
 - **Recordings are ready to share.**
   - Each one is saved in Movies › NotchHub as HEVC video.
   - It's copied to the clipboard as a file, so you can paste it into Finder, Messages, Slack or Discord.
@@ -188,7 +188,7 @@ NotchHub dört şey yapar, fazlasını değil:
    - Geçmiş sadece bellekte tutulur.
 4. **Ekran:** tek tıkla ekran görüntüsü ya da ekran kaydı.
    - Ekran görüntüsü (alan, pencere ya da tam ekran) doğrudan panoya gider.
-   - Kayıt sırasında çentikte kırmızı nokta ve süre görünür. Kaydı Ekran sekmesinden ya da menü çubuğundan durdurursun.
+   - Kayıt sırasında çentikte kırmızı nokta ve süre görünür. Durdurmak için çentiğe tıklaman yeterli; Ekran sekmesinden ya da menü çubuğundan da durdurabilirsin.
    - Kayıt Filmler › NotchHub klasörüne kaydedilir, dosya olarak panoya kopyalanır ve rafa da eklenir.
    - Bunun için macOS bir kez "Ekran Kaydı" izni ister.
 
