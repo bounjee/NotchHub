@@ -21,25 +21,26 @@ import Testing
         #expect(eyes(.blink).isEmpty)
     }
 
-    @Test func sleepingEyesAreClosedNotGone() {
+    @Test func sleepingEyesAreThinLinesWhereTheEyesAre() {
         let row = Clawd.rows(.asleep)[1]
-        #expect(row.enumerated().filter { $0.element == "_" }.map(\.offset) == [4, 5, 12, 13])
-        // In the double-height image, the upper half of each eye is body and the lower half is open.
+        #expect(row.enumerated().filter { $0.element == "_" }.map(\.offset) == [5, 12])
         guard let image = Clawd.image(.asleep, color: .white),
               let data = image.dataProvider?.data, let bytes = CFDataGetBytePtr(data) else {
             Issue.record("no image")
             return
         }
         let alpha = { (x: Int, yFromTop: Int) in bytes[yFromTop * image.bytesPerRow + x * 4 + 3] }
-        #expect(image.height == Clawd.height * 2)
-        for x in [4, 5, 12, 13] {
-            #expect(alpha(x, 2) > 0)   // eyelid
-            #expect(alpha(x, 3) == 0)  // closed-eye line, two pixels wide
+        #expect(image.height == Clawd.height * Clawd.subrows)
+        // Row 1 spans image rows 4...7 from the top; the line is row 6.
+        for x in [5, 12] {
+            #expect(alpha(x, 4) > 0)
+            #expect(alpha(x, 5) > 0)
+            #expect(alpha(x, 6) == 0)
+            #expect(alpha(x, 7) > 0)
         }
-        #expect(alpha(3, 3) > 0)   // body next to it
-        #expect(alpha(6, 3) > 0)
-    }
-}
+        // Only the eye column is cut, a single pixel wide.
+        for x in [4, 6, 11, 13] { #expect(alpha(x, 6) > 0) }
+    }}
 
 @MainActor @Suite struct PetBrainTests {
     private func store(working: Bool = false, usage: Double? = nil) -> ClaudeStore {
@@ -52,6 +53,13 @@ import Testing
             store.handle(HookEvent(json: Data(#"{"hook_event_name":"NotchHubStatusLine","session_id":"a","rate_limits":{"five_hour":{"used_percentage":\#(usage),"resets_at":\#(resets)}}}"#.utf8))!)
         }
         return store
+    }
+
+    @Test func factsComeOneAtATimeInAFixedOrder() {
+        let facts = PetBrain.info(store: store(working: true, usage: 10), battery: nil)
+        #expect(facts.count == 2)
+        #expect(facts[0].hasPrefix("Claude:"))
+        #expect(facts[1].hasPrefix("Limit:"))
     }
 
     @Test func threeFactsWhenNothingIsGoingOn() {

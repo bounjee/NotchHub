@@ -26,29 +26,36 @@ enum Clawd {
         case .lookLeft: [middle, "...#.######.###...", body, middle, legs]
         case .lookRight: [middle, "...###.######.#...", body, middle, legs]
         case .wave: [".#.############...", ".#.##.######.##...", "...##############.", middle, legs]
-        // Closed eyes as "- -": "_" keeps the upper half of a pixel, leaving a thin dark line
-        // two pixels wide where each eye was.
-        case .asleep: [middle, "...#__######__#...", body, middle, legs]
+        // Closed eyes: "_" is body with a thin dark line through it, right where each eye is.
+        case .asleep: [middle, "...##_######_##...", body, middle, legs]
         }
     }
 
-    /// Two image rows per mascot row (each mascot pixel is twice as tall as wide, so half
-    /// pixels are possible); the layer scales it up without smoothing.
+    /// Image rows per mascot row: each mascot pixel is twice as tall as wide, and a closed eye
+    /// is a line a quarter of a pixel thick.
+    static let subrows = 4
+
+    /// The layer scales the image up without smoothing.
     static func image(_ pose: Pose, color: NSColor) -> CGImage? {
-        let imageHeight = height * 2
+        let imageHeight = height * subrows
         guard let context = CGContext(
             data: nil, width: width, height: imageHeight, bitsPerComponent: 8, bytesPerRow: 0,
             space: CGColorSpace(name: CGColorSpace.sRGB)!, bitmapInfo: CGImageAlphaInfo.premultipliedLast.rawValue
         ) else { return nil }
         context.setFillColor(color.cgColor)
         for (y, row) in rows(pose).enumerated() {
-            // CGContext's origin is bottom-left.
-            let bottom = imageHeight - 2 * (y + 1)
+            // CGContext's origin is bottom-left; rows are listed top to bottom.
+            let bottom = imageHeight - subrows * (y + 1)
             for (x, cell) in row.enumerated() {
                 switch cell {
-                case "#": context.fill(CGRect(x: x, y: bottom, width: 1, height: 2))
-                case "_": context.fill(CGRect(x: x, y: bottom + 1, width: 1, height: 1))
-                default: break
+                case "#":
+                    context.fill(CGRect(x: x, y: bottom, width: 1, height: subrows))
+                case "_":
+                    // Leave the second subrow from the bottom open: a thin line, slightly low.
+                    context.fill(CGRect(x: x, y: bottom, width: 1, height: 1))
+                    context.fill(CGRect(x: x, y: bottom + 2, width: 1, height: subrows - 2))
+                default:
+                    break
                 }
             }
         }

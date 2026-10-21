@@ -6,8 +6,8 @@ enum PetBrain {
     /// Seconds without a touch before it dozes off.
     static let sleepAfter: TimeInterval = 45
 
-    /// The three things worth knowing at a glance: Claude, plan usage, the latest finish
-    /// (or the battery when nothing has finished yet).
+    /// The three things worth knowing, shown one per click: Claude, plan usage, the latest
+    /// finish (or the battery when nothing has finished yet).
     @MainActor
     static func info(store: ClaudeStore, battery: BatteryMonitor?, now: Date = Date()) -> [String] {
         var lines = ["Claude: \(store.statusSummary ?? "boşta")"]
@@ -276,6 +276,7 @@ final class DesktopPet {
     private var sleepTask: Task<Void, Never>?
     private var isAsleep = false
     private var isCarried = false
+    private var clicks = 0
     private var celebrationsSeen = 0
     private var lastStatus: SessionStatus??
 
@@ -450,16 +451,19 @@ final class DesktopPet {
             wake(greeting: "Günaydın! ☀️")
             return
         }
+        // One fact per click, in turn.
+        let facts = PetBrain.info(store: model.claude, battery: model.battery)
+        clicks += 1
         view.sprite.hop()
         view.blushFor(2)
-        view.say(lines: PetBrain.info(store: model.claude, battery: model.battery), for: 4.5)
+        view.say(facts[(clicks - 1) % facts.count])
         scheduleSleep()
     }
 
     private func showMenu(_ event: NSEvent) {
         guard let view else { return }
         let menu = NSMenu()
-        menu.addItem(ClosureMenuItem("Bilgileri göster", symbol: "info.circle") { [weak self] in self?.clicked(1) })
+        menu.addItem(ClosureMenuItem("Bilgi göster", symbol: "info.circle") { [weak self] in self?.clicked(1) })
         menu.addItem(ClosureMenuItem("Paneli aç", symbol: "rectangle.topthird.inset.filled") { [weak self] in self?.openPanel() })
         if isAsleep {
             menu.addItem(ClosureMenuItem("Uyandır", symbol: "sun.max") { [weak self] in self?.wake(greeting: "Günaydın! ☀️") })
