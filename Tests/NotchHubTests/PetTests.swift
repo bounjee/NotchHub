@@ -96,3 +96,19 @@ import Testing
         #expect(Clawd.image(.typeLeft, color: Clawd.orange)?.width == Clawd.width)
     }
 }
+
+@Suite struct PetDoubleClickTests {
+    @Test func doubleClickGoesToTheMostUrgentSessionWithATerminal() {
+        let terminal = TerminalLocation(appPID: 1, bundleID: "com.apple.Terminal", tty: "/dev/ttys001", cwd: nil)
+        var asking = ClaudeSession(id: "a", label: "api")
+        asking.status = .needsApproval
+        var done = ClaudeSession(id: "b", label: "web", terminal: terminal)
+        done.status = .done
+        var waiting = ClaudeSession(id: "c", label: "docs", terminal: terminal)
+        waiting.status = .waitingForUser
+        // Sorted most urgent first; the asking one has no known terminal, so it is skipped.
+        #expect(PetBrain.sessionToOpen([asking, waiting, done])?.id == "c")
+        #expect(PetBrain.sessionToOpen([asking]) == nil)
+        #expect(PetBrain.sessionToOpen([]) == nil)
+    }
+}

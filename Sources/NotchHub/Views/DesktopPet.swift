@@ -6,6 +6,12 @@ enum PetBrain {
     /// Seconds without a touch before it dozes off.
     static let sleepAfter: TimeInterval = 45
 
+    /// Where a double click takes you: the most urgent session whose terminal is known.
+    /// `sessions` comes most urgent first, as `ClaudeStore.sortedSessions` lists them.
+    static func sessionToOpen(_ sessions: [ClaudeSession]) -> ClaudeSession? {
+        sessions.first { $0.terminal != nil }
+    }
+
     /// The things worth knowing, shown one per click: Claude, plan usage, the latest finish.
     @MainActor
     static func info(store: ClaudeStore, now: Date = Date()) -> [String] {
@@ -445,7 +451,13 @@ final class DesktopPet {
     private func clicked(_ count: Int) {
         guard let view else { return }
         if count >= 2 {
-            openPanel()
+            // Straight to Claude: the session that needs you most. With none, the panel.
+            if let session = PetBrain.sessionToOpen(model.claude.sortedSessions) {
+                model.claude.jumpToTerminal(session.id)
+                view.say("↗ \(ClaudeStore.shortLabel(session.label))", for: 1.6)
+            } else {
+                openPanel()
+            }
             return
         }
         if isAsleep {
