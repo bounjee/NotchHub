@@ -8,7 +8,6 @@
 "Done" = "Bitti";
 "Error" = "Hata";
 "done" = "bitti";
-"idle" = "boşta";
 
 /* Panel */
 "No active Claude Code sessions" = "Aktif Claude Code oturumu yok";
@@ -44,14 +43,11 @@
 "Claude limit %lld%%" = "Claude limiti %%%lld";
 
 /* Desktop mascot */
-"Claude: %@" = "Claude: %@";
 "Limit: %@" = "Limit: %@";
 "no data yet" = "henüz bilgi yok";
 "5h %lld%%" = "5 saat %%%lld";
 "week %lld%%" = "hafta %%%lld";
 "Last done: %@ · %@ ago" = "Son biten: %@ · %@ önce";
-"%@ done ✓" = "%@ bitti ✓";
-"Permission needed! 🙋" = "İzin lazım! 🙋";
 "Good morning! ☀️" = "Günaydın! ☀️";
 "Show Info" = "Bilgi göster";
 "Open Panel" = "Paneli aç";
@@ -122,5 +118,15 @@
 
 /* Questions */
 "asks you" = "soru soruyor";
-"%@ has a question ❓" = "%@ bir şey soruyor ❓";
 "Plan ready for your review" = "Plan onayını bekliyor";
+
+/* Short, clear lines for the notch and the mascot */
+"✓ %@ done" = "✓ %@ bitti";
+"🙋 %@ needs permission" = "🙋 %@ izin istiyor";
+"❓ %@ asks you" = "❓ %@ soru soruyor";
+"Claude is idle" = "Claude boşta";
+"Download" = "İndirilen";
+"text" = "metin";
+"code" = "kod";
+"color" = "renk";
+"link" = "link";

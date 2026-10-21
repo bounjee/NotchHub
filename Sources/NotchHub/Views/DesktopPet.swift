@@ -9,7 +9,7 @@ enum PetBrain {
     /// The things worth knowing, shown one per click: Claude, plan usage, the latest finish.
     @MainActor
     static func info(store: ClaudeStore, now: Date = Date()) -> [String] {
-        var lines = [String(localized: "Claude: \(store.statusSummary ?? String(localized: "idle"))")]
+        var lines = [store.statusSummary ?? String(localized: "Claude is idle")]
 
         let limits = store.limits.current(at: now)
         var usage: [String] = []
@@ -18,7 +18,7 @@ enum PetBrain {
         lines.append(String(localized: "Limit: \(usage.isEmpty ? String(localized: "no data yet") : usage.joined(separator: " · "))"))
 
         if let finished = store.sessions.values.filter({ $0.status == .done }).max(by: { $0.statusSince < $1.statusSince }) {
-            lines.append(String(localized: "Last done: \(finished.label) · \(shortElapsed(from: finished.statusSince, to: now)) ago"))
+            lines.append(String(localized: "Last done: \(ClaudeStore.shortLabel(finished.label)) · \(shortElapsed(from: finished.statusSince, to: now)) ago"))
         }
         return lines
     }
@@ -175,8 +175,9 @@ final class PetView: NSView {
     }
 
     /// A bubble above the mascot, one row per line.
-    func say(lines: [String], for seconds: TimeInterval = 2.8) {
+    func say(lines given: [String], for seconds: TimeInterval = 2.8) {
         let font = NSFont.systemFont(ofSize: 12, weight: .semibold)
+        let lines = given.flatMap { Self.wrap($0, width: Self.stageSize.width - 32, font: font) }
         let widest = lines.map { ceil(($0 as NSString).size(withAttributes: [.font: font]).width) }.max() ?? 0
         let width = min(Self.stageSize.width - 8, widest + 24)
         let lineHeight: CGFloat = 16
@@ -189,7 +190,7 @@ final class PetView: NSView {
         bubble.bounds = CGRect(x: 0, y: 0, width: width, height: height)
         bubble.position = CGPoint(x: Self.stageSize.width / 2, y: Self.spriteSize.height + height / 2 + 12)
         bubbleText.frame = CGRect(x: 12, y: 4, width: width - 24, height: height - 8)
-        bubbleText.truncationMode = .end
+        bubbleText.truncationMode = .none
         CATransaction.commit()
 
         let fade = CAKeyframeAnimation(keyPath: "opacity")
@@ -204,6 +205,20 @@ final class PetView: NSView {
         pop.duration = pop.settlingDuration
         bubble.add(fade, forKey: "fade")
         bubble.add(pop, forKey: "pop")
+    }
+
+    /// Splits a line on spaces so each piece fits `width`; the bubble grows taller instead of cutting.
+    static func wrap(_ line: String, width: CGFloat, font: NSFont) -> [String] {
+        func fits(_ text: String) -> Bool { (text as NSString).size(withAttributes: [.font: font]).width <= width }
+        guard !fits(line) else { return [line] }
+        var result: [String] = []
+        var current = ""
+        for word in line.split(separator: " ").map(String.init) {
+            let next = current.isEmpty ? word : current + " " + word
+            if fits(next) || current.isEmpty { current = next } else { result.append(current); current = word }
+        }
+        if !current.isEmpty { result.append(current) }
+        return result
     }
 
     func blushFor(_ seconds: TimeInterval) {
@@ -373,18 +388,19 @@ final class DesktopPet {
             wake(greeting: nil)
             view.sprite.hop(twice: true)
             view.blushFor(2.5)
-            view.say(String(localized: "\(model.lastFinished ?? "Claude") done ✓"))
+            view.say(String(localized: "✓ \(model.lastFinished ?? "Claude") done"))
         }
         let status = model.claude.headlineStatus
         if lastStatus != .some(status), status == .needsApproval {
+            let asking = model.claude.sortedSessions.first { $0.status == .needsApproval }
             wake(greeting: nil)
             view.sprite.hop()
-            view.say(String(localized: "Permission needed! 🙋"), for: 3.5)
+            view.say(String(localized: "🙋 \(ClaudeStore.shortLabel(asking?.label ?? "Claude")) needs permission"), for: 3.5)
         } else if lastStatus != .some(status), status == .waitingForUser,
                   let asking = model.claude.sortedSessions.first(where: { $0.status == .waitingForUser }) {
             wake(greeting: nil)
             view.sprite.hop()
-            view.say(String(localized: "\(asking.label) has a question ❓"), for: 3.5)
+            view.say(String(localized: "❓ \(ClaudeStore.shortLabel(asking.label)) asks you"), for: 3.5)
         }
         lastStatus = .some(status)
         if !isAsleep { restingAnimation() }

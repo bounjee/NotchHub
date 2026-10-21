@@ -23,6 +23,17 @@ enum ClipboardKind: Equatable {
     case color(red: Double, green: Double, blue: Double, alpha: Double)
     case link(URL)
 
+    /// One word for the notch: what was copied.
+    var name: String {
+        switch self {
+        case .text: String(localized: "text")
+        case .code: String(localized: "code")
+        case .json: "JSON"
+        case .color: String(localized: "color")
+        case .link: String(localized: "link")
+        }
+    }
+
     static func detect(_ text: String) -> ClipboardKind {
         let trimmed = text.trimmingCharacters(in: .whitespacesAndNewlines)
         let isSingleLine = !trimmed.contains(where: \.isNewline)

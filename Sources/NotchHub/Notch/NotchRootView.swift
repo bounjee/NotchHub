@@ -279,34 +279,24 @@ private struct CompactActivity: View {
     var body: some View {
         HStack(spacing: 6) {
             switch model.peek {
-            case .claudeDone(let label):
+            case .claudeDone:
                 icon("checkmark.circle.fill", .green)
-                title(label)
-                detail(String(localized: "done")).fixedSize()
-            case .question(let label):
+            case .question:
                 icon("questionmark.bubble.fill", .blue)
-                title(label)
-                detail(String(localized: "asks you")).fixedSize()
-            case .copied(let text):
+            case .copied:
                 icon("checkmark.circle.fill", .green)
-                title(String(localized: "Copied"))
-                detail(text)
             case .screenshot(let path):
                 FileThumbnail(path: path, size: 20)
-                title(String(localized: "Screenshot"))
-                detail(String(localized: "on the shelf")).fixedSize()
-            case .downloaded(let name):
+            case .downloaded:
                 icon("arrow.down.circle.fill", .blue)
-                title(name)
-                detail(String(localized: "on the shelf")).fixedSize()
             case .usage(let percent):
                 icon("gauge.with.dots.needle.67percent", percent >= 95 ? .red : .orange)
-                title(String(localized: "Claude limit \(percent)%"))
-                if let window = model.claude.limits.current().fiveHour {
-                    detail(window.resetText())
-                }
             default:
                 EmptyView()
+            }
+            if let peek = model.peek, let title = peek.title {
+                self.title(title)
+                if let detail = peek.detail { self.detail(detail) }
             }
         }
         .padding(.leading, 6)
@@ -325,16 +315,14 @@ private struct CompactActivity: View {
         Text(verbatim: text)
             .font(.system(size: 11.5, weight: .semibold))
             .foregroundStyle(.white.opacity(0.92))
-            .lineLimit(1)
-            .truncationMode(.middle)
-            .layoutPriority(1)
+            .fixedSize()
     }
 
     private func detail(_ text: String) -> some View {
-        Text(verbatim: text.trimmingCharacters(in: .whitespacesAndNewlines).replacingOccurrences(of: "\n", with: " "))
+        Text(verbatim: text)
             .font(.system(size: 11))
             .foregroundStyle(.white.opacity(0.55))
-            .lineLimit(1)
+            .fixedSize()
     }
 }
 
@@ -492,10 +480,11 @@ struct ClaudeHeadline: View {
         HStack(spacing: 7) {
             if let first = sessions.first {
                 StatusIndicator(status: first.status)
-                Text(verbatim: Self.summary(sessions))
-                    .font(.system(size: 12, weight: .medium))
-                    .foregroundStyle(.white.opacity(0.85))
-                    .lineLimit(1)
+                OneLine {
+                    Text(verbatim: Self.summary(sessions))
+                        .font(.system(size: 12, weight: .medium))
+                        .foregroundStyle(.white.opacity(0.85))
+                }
             } else {
                 Text("✻").font(.system(size: 13, weight: .bold)).foregroundStyle(Color.claude)
                 Text("Claude Code")
@@ -510,7 +499,7 @@ struct ClaudeHeadline: View {
     /// otherwise the most urgent group and how many others there are ("1 needs permission +2").
     static func summary(_ sessions: [ClaudeSession]) -> String {
         guard let first = sessions.first else { return "" }
-        if sessions.count == 1 { return "\(first.label) · \(first.status.title)" }
+        if sessions.count == 1 { return "\(ClaudeStore.shortLabel(first.label)) · \(first.status.title)" }
         let urgent = sessions.filter { $0.status == first.status }.count
         let head = "\(urgent) \(first.status.title.localizedLowercase)"
         return urgent == sessions.count ? head : "\(head) +\(sessions.count - urgent)"

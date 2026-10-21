@@ -1,3 +1,4 @@
+import AppKit
 import Foundation
 import Testing
 @testable import NotchHub
@@ -120,5 +121,42 @@ import Testing
         send("StopFailure", "b", ["error": "rate_limit"])
         model.showPeek(.downloaded("file.zip"), hovering: false)
         #expect(store.indicator?.kind == .error)
+    }
+}
+
+@MainActor @Suite struct ShortTextTests {
+    @Test func labelsShortenOnWordsWithoutDots() {
+        #expect(ClaudeStore.shortLabel("NotchHub macOS uygulaması") == "NotchHub macOS")
+        #expect(ClaudeStore.shortLabel("web-app") == "web-app")
+        #expect(ClaudeStore.shortLabel("averyveryverylongprojectname") == "averyveryverylon")
+        #expect(!ClaudeStore.shortLabel("one two three four five six").contains("…"))
+    }
+
+    @Test func peeksNameTheirSourceAndFitTheirWing() {
+        #expect(PeekReason.question("api").title == "api")
+        #expect(PeekReason.question("api").detail == "asks you")
+        #expect(PeekReason.copied("https://example.com/a").detail == "link")
+        #expect(PeekReason.downloaded("a-very-long-file-name-from-the-web.zip").title == "Download")
+        let short = PeekReason.claudeDone("api").wingWidth
+        let long = PeekReason.claudeDone("NotchHub macOS").wingWidth
+        #expect(long > short)
+        #expect(PeekReason.permission.wingWidth == 30)
+    }
+
+    @Test func storeAnnouncesShortLabels() {
+        let store = ClaudeStore()
+        var peeks: [PeekReason] = []
+        store.onPeek = { peeks.append($0) }
+        let start = HookEvent(json: Data(#"{"hook_event_name":"UserPromptSubmit","session_id":"x","cwd":"/tmp/x","session_title":"NotchHub macOS uygulaması"}"#.utf8))!
+        store.handle(start)
+        store.handle(HookEvent(json: Data(#"{"hook_event_name":"Stop","session_id":"x","background_tasks":[],"last_assistant_message":"Shall I continue?"}"#.utf8))!)
+        #expect(peeks == [.question("NotchHub macOS")])
+    }
+
+    @Test func bubbleWrapsInsteadOfCutting() {
+        let font = NSFont.systemFont(ofSize: 12, weight: .semibold)
+        let lines = PetView.wrap("❓ NotchHub macOS asks you about the next release plan", width: 150, font: font)
+        #expect(lines.count > 1)
+        #expect(lines.joined(separator: " ") == "❓ NotchHub macOS asks you about the next release plan")
     }
 }

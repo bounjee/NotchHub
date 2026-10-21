@@ -55,11 +55,11 @@ import Testing
 
     @Test func factsComeOneAtATimeInAFixedOrder() {
         let facts = PetBrain.info(store: store(working: true, usage: 42))
-        #expect(facts == ["Claude: my-app · Working", "Limit: 5h 42%"])
+        #expect(facts == ["my-app · Working", "Limit: 5h 42%"])
     }
 
     @Test func idleWithoutData() {
-        #expect(PetBrain.info(store: store()) == ["Claude: idle", "Limit: no data yet"])
+        #expect(PetBrain.info(store: store()) == ["Claude is idle", "Limit: no data yet"])
     }
 
     @Test func latestFinishIsNamed() {
@@ -71,7 +71,7 @@ import Testing
             store.handle(HookEvent(json: Data(#"{"hook_event_name":"Stop","session_id":"\#(id)","background_tasks":[]}"#.utf8))!, now: start.addingTimeInterval(end))
         }
         let lines = PetBrain.info(store: store, now: start.addingTimeInterval(170))
-        #expect(lines[0] == "Claude: 2 done")
+        #expect(lines[0] == "2 done")
         #expect(lines[2] == "Last done: my-app · 2m ago")
     }
 

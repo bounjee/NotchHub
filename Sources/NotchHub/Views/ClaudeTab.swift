@@ -79,12 +79,13 @@ private struct PermissionCard: View {
             .font(.system(size: 13))
 
             if !request.summary.isEmpty {
-                Text(verbatim: request.summary)
-                    .font(.system(size: 12, design: .monospaced))
-                    .foregroundStyle(.white.opacity(0.85))
-                    .lineLimit(4)
-                    .textSelection(.enabled)
-                    .frame(maxWidth: .infinity, alignment: .leading)
+                FewLines(maxHeight: 64) {
+                    Text(verbatim: request.summary)
+                        .font(.system(size: 12, design: .monospaced))
+                        .foregroundStyle(.white.opacity(0.85))
+                        .textSelection(.enabled)
+                        .frame(maxWidth: .infinity, alignment: .leading)
+                }
                     .padding(8)
                     .background(RoundedRectangle(cornerRadius: 8, style: .continuous).fill(.white.opacity(0.06)))
             }
@@ -141,18 +142,18 @@ private struct SessionRow: View {
                 .frame(width: 16)
             VStack(alignment: .leading, spacing: 2) {
                 HStack(spacing: 6) {
-                    Text(verbatim: session.label).font(.system(size: 13, weight: .semibold)).lineLimit(1)
+                    Text(verbatim: ClaudeStore.shortLabel(session.label, max: 30)).font(.system(size: 13, weight: .semibold)).fixedSize()
                     Text(verbatim: session.status.title).font(.system(size: 12)).foregroundStyle(session.status.tint).fixedSize()
                     if session.unseen {
                         Circle().fill(session.status.tint).frame(width: 5, height: 5)
                             .help(String(localized: "Not looked at yet"))
                     }
                 }
-                Text(verbatim: detail)
-                    .font(.system(size: 11, design: session.currentTool != nil && !isFinished ? .monospaced : .default))
-                    .foregroundStyle(.secondary)
-                    .lineLimit(1)
-                    .truncationMode(.tail)
+                OneLine {
+                    Text(verbatim: detail)
+                        .font(.system(size: 11, design: session.currentTool != nil && !isFinished ? .monospaced : .default))
+                        .foregroundStyle(.secondary)
+                }
             }
             Spacer(minLength: 8)
             if hovering {

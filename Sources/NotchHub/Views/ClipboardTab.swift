@@ -139,12 +139,12 @@ private struct ClipboardRow: View {
         case .link(let url):
             HStack(spacing: 7) {
                 Image(systemName: "link").font(.system(size: 10.5, weight: .semibold)).foregroundStyle(.blue)
-                Text(verbatim: url.host() ?? "").font(.system(size: 12, weight: .semibold))
-                + Text(verbatim: String(trimmed.dropFirst((url.scheme?.count ?? 0) + 3 + (url.host()?.count ?? 0))))
-                    .font(.system(size: 12)).foregroundStyle(.secondary)
+                OneLine {
+                    Text(verbatim: url.host() ?? "").font(.system(size: 12, weight: .semibold))
+                    + Text(verbatim: String(trimmed.dropFirst((url.scheme?.count ?? 0) + 3 + (url.host()?.count ?? 0))))
+                        .font(.system(size: 12)).foregroundStyle(.secondary)
+                }
             }
-            .lineLimit(1)
-            .truncationMode(.middle)
         case .json:
             HStack(spacing: 7) {
                 Text(verbatim: "JSON")
@@ -152,12 +152,12 @@ private struct ClipboardRow: View {
                     .padding(.horizontal, 5).padding(.vertical, 2)
                     .background(Capsule().fill(.yellow.opacity(0.2)))
                     .foregroundStyle(.yellow)
-                Text(verbatim: trimmed).font(.system(size: 11.5, design: .monospaced)).lineLimit(2)
+                FewLines(maxHeight: 30) { Text(verbatim: trimmed).font(.system(size: 11.5, design: .monospaced)) }
             }
         case .code:
-            Text(verbatim: trimmed).font(.system(size: 11.5, design: .monospaced)).lineLimit(3)
+            FewLines(maxHeight: 45) { Text(verbatim: trimmed).font(.system(size: 11.5, design: .monospaced)) }
         case .text:
-            Text(verbatim: trimmed).font(.system(size: 12)).lineLimit(2)
+            FewLines(maxHeight: 31) { Text(verbatim: trimmed).font(.system(size: 12)) }
         }
     }
 }

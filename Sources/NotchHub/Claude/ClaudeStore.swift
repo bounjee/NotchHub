@@ -133,7 +133,7 @@ final class ClaudeStore {
     var statusSummary: String? {
         let all = sortedSessions
         guard let first = all.first else { return nil }
-        if all.count == 1 { return "\(first.label) · \(first.status.title)" }
+        if all.count == 1 { return "\(Self.shortLabel(first.label)) · \(first.status.title)" }
         var counts: [SessionStatus: Int] = [:]
         for session in all { counts[session.status, default: 0] += 1 }
         return counts.keys.sorted { Self.urgency($0) < Self.urgency($1) }
@@ -299,7 +299,7 @@ final class ClaudeStore {
                 if let message = event.lastAssistantMessage, !message.isEmpty { $0.lastMessage = message }
                 if !event.hasBackgroundTasks, worked || asks { $0.unseen = true }
             }
-            let label = sessions[sid]?.label ?? "Claude"
+            let label = Self.shortLabel(sessions[sid]?.label ?? "Claude")
             if asks { onPeek?(.question(label)) }
             else if !event.hasBackgroundTasks, worked { onPeek?(.claudeDone(label)) }
 
@@ -428,6 +428,20 @@ final class ClaudeStore {
         return data
     }
 
+    /// A session's name short enough for the notch and the mascot's bubble: whole words up to
+    /// `max` characters ("NotchHub macOS uygulaması" -> "NotchHub macOS"), never cut with "…".
+    nonisolated static func shortLabel(_ label: String, max: Int = 16) -> String {
+        guard label.count > max else { return label }
+        var result = ""
+        for word in label.split(separator: " ") {
+            let next = result.isEmpty ? String(word) : result + " " + word
+            if next.count > max { break }
+            result = next
+        }
+        // A single word longer than the limit keeps its start.
+        return result.isEmpty ? String(label.prefix(max)) : result
+    }
+
     /// Tools that stop and wait for the user's answer in the terminal.
     nonisolated static let questionTools: Set<String> = ["AskUserQuestion", "ExitPlanMode"]
 
@@ -453,7 +467,7 @@ final class ClaudeStore {
             $0.currentTool = question.flatMap { $0.isEmpty ? nil : $0 }
             $0.unseen = true
         }
-        onPeek?(.question(sessions[sid]?.label ?? "Claude"))
+        onPeek?(.question(Self.shortLabel(sessions[sid]?.label ?? "Claude")))
     }
 
     nonisolated static func toolLine(_ event: HookEvent) -> String? {

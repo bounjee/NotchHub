@@ -89,12 +89,13 @@ private struct ShelfTile: View {
                                   : String(localized: "Download · leaves the shelf after a day"))
                     }
                 }
-            Text(verbatim: item.name)
-                .font(.system(size: 10.5))
-                .lineLimit(2)
-                .multilineTextAlignment(.center)
-                .truncationMode(.middle)
-                .frame(width: 80, height: 28, alignment: .top)
+            FewLines(maxHeight: 28) {
+                Text(verbatim: item.name)
+                    .font(.system(size: 10.5))
+                    .multilineTextAlignment(.center)
+                    .frame(width: 80)
+            }
+            .frame(width: 80, height: 28, alignment: .top)
         }
         .padding(.vertical, 8)
         .frame(width: 90)

@@ -62,17 +62,37 @@ enum PeekReason: Equatable {
         }
     }
 
-    /// Width of the activity's wing right of the notch. Nothing goes on the left:
-    /// app menus reach the notch there.
-    var wingWidth: CGFloat {
+    /// The words beside the icon: short and complete, so they never need cutting.
+    var title: String? {
         switch self {
-        case .claudeDone(let label), .question(let label):
-            min(250, 102 + (label as NSString).size(withAttributes: [.font: NSFont.systemFont(ofSize: 11.5, weight: .semibold)]).width)
-        case .copied, .downloaded: 190
-        case .screenshot: 200
-        case .usage: 170
-        case .permission, .summoned: 30
+        case .claudeDone(let label), .question(let label): label
+        case .copied: String(localized: "Copied")
+        case .screenshot: String(localized: "Screenshot")
+        case .downloaded(let name): name.count <= 22 ? name : String(localized: "Download")
+        case .usage(let percent): String(localized: "Claude limit \(percent)%")
+        case .permission, .summoned: nil
         }
+    }
+
+    var detail: String? {
+        switch self {
+        case .claudeDone: String(localized: "done")
+        case .question: String(localized: "asks you")
+        case .copied(let text): ClipboardKind.detect(text).name
+        case .screenshot, .downloaded: String(localized: "on the shelf")
+        case .usage, .permission, .summoned: nil
+        }
+    }
+
+    /// Width of the activity's wing right of the notch, measured from its words. Nothing goes on
+    /// the left: app menus reach the notch there.
+    var wingWidth: CGFloat {
+        guard let title else { return 30 }
+        func width(_ text: String, _ font: NSFont) -> CGFloat { ceil((text as NSString).size(withAttributes: [.font: font]).width) }
+        var total = width(title, .systemFont(ofSize: 11.5, weight: .semibold))
+        if let detail { total += 6 + width(detail, .systemFont(ofSize: 11)) }
+        // Leading padding, icon and its spacing, trailing padding and the top-corner ear.
+        return total + 6 + 26 + 10 + 6 + 4
     }
 }
 
