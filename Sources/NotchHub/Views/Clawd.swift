@@ -7,7 +7,7 @@ import SwiftUI
 ///     ▝▜█████▛▘
 ///       ▘▘ ▝▝
 enum Clawd {
-    enum Pose: CaseIterable { case normal, blink, step, armsUp, happy, lookLeft, lookRight, wave, asleep }
+    enum Pose: CaseIterable { case normal, blink, step, armsUp, lookLeft, lookRight, wave, asleep }
 
     static let width = 18
     static let height = 5
@@ -23,12 +23,12 @@ enum Clawd {
         case .blink: [middle, middle, body, middle, legs]
         case .step: [middle, "...##.######.##...", body, middle, ".....#.#..#.#....."]
         case .armsUp: [".#.############.#.", ".#.##.######.##.#.", middle, middle, legs]
-        case .happy: ["...##.######.##...", middle, body, middle, legs]
         case .lookLeft: [middle, "...#.######.###...", body, middle, legs]
         case .lookRight: [middle, "...###.######.#...", body, middle, legs]
         case .wave: [".#.############...", ".#.##.######.##...", "...##############.", middle, legs]
-        // Closed eyes: "_" keeps the upper half of the pixel, leaving a thin line where the eye was.
-        case .asleep: [middle, "...##_######_##...", body, middle, legs]
+        // Closed eyes as "- -": "_" keeps the upper half of a pixel, leaving a thin dark line
+        // two pixels wide where each eye was.
+        case .asleep: [middle, "...#__######__#...", body, middle, legs]
         }
     }
 
@@ -258,7 +258,7 @@ final class ClawdLayerView: NSView {
         }
     }
 
-    private var restingPose: Clawd.Pose { status == .some(.done) ? .happy : .normal }
+    private var restingPose: Clawd.Pose { .normal }
 
     private var isResting: Bool {
         switch status {
@@ -278,7 +278,7 @@ final class ClawdLayerView: NSView {
             sprite.show(.armsUp)
             sprite.loop([.armsUp, .normal], duration: 1.2)
         case .done:
-            sprite.blink(open: .happy, every: 4)
+            sprite.blink(open: .normal, every: 4)
         default:
             sprite.blink(open: .normal, every: 3.2)
         }

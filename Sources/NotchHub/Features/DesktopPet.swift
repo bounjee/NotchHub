@@ -6,36 +6,24 @@ enum PetBrain {
     /// Seconds without a touch before it dozes off.
     static let sleepAfter: TimeInterval = 45
 
-    static let chatter = [
-        "Merhaba! 👋",
-        "Kod yazalım mı?",
-        "Harika gidiyorsun ✨",
-        "Bir kahve molası? ☕",
-        "Buradayım, izliyorum 👀",
-        "Bana bir görev ver!",
-        "Hata mı? Birlikte bakarız.",
-        "Biraz su iç 💧",
-    ]
-
+    /// The three things worth knowing at a glance: Claude, plan usage, the latest finish
+    /// (or the battery when nothing has finished yet).
     @MainActor
-    static func summary(of store: ClaudeStore) -> String? {
-        guard let status = store.headlineStatus,
-              let session = store.sortedSessions.first(where: { $0.status == status })
-        else { return nil }
-        return "\(session.label) · \(status.title.lowercased(with: Locale(identifier: "tr")))"
-    }
+    static func info(store: ClaudeStore, battery: BatteryMonitor?, now: Date = Date()) -> [String] {
+        var lines = ["Claude: \(store.statusSummary ?? "boşta")"]
 
-    /// What it says on the `index`th click: news first, then usage, then small talk.
-    @MainActor
-    static func line(_ index: Int, store: ClaudeStore) -> String {
-        var lines: [String] = []
-        if let summary = summary(of: store) { lines.append(summary) }
-        if let window = store.limits.current().fiveHour {
-            lines.append("5 saatlik limit: %\(Int(window.usedPercentage.rounded()))")
+        let limits = store.limits.current(at: now)
+        var usage: [String] = []
+        if let window = limits.fiveHour { usage.append("5 saat %\(Int(window.usedPercentage.rounded()))") }
+        if let window = limits.sevenDay { usage.append("hafta %\(Int(window.usedPercentage.rounded()))") }
+        lines.append("Limit: " + (usage.isEmpty ? "bilgi yok" : usage.joined(separator: " · ")))
+
+        if let finished = store.sessions.values.filter({ $0.status == .done }).max(by: { $0.statusSince < $1.statusSince }) {
+            lines.append("Son biten: \(finished.label) · \(shortElapsed(from: finished.statusSince, to: now)) önce")
+        } else if let battery, battery.hasBattery {
+            lines.append("Pil: %\(battery.percent)\(battery.isPluggedIn ? " · şarjda" : "")")
         }
-        let talk = chatter[index % chatter.count]
-        lines.append(talk)
-        return lines[index % lines.count]
+        return lines
     }
 }
 
@@ -56,6 +44,7 @@ final class PetView: NSView {
     private let sleepZs = CALayer()
 
     var onClick: ((Int) -> Void)?
+    var onRightClick: ((NSEvent) -> Void)?
     var onDragChanged: ((Bool) -> Void)?
     var onDragEnded: ((NSPoint) -> Void)?
 
@@ -64,7 +53,7 @@ final class PetView: NSView {
         CGSize(width: CGFloat(Clawd.width) * pixel, height: CGFloat(Clawd.height) * pixel * Clawd.pixelAspect)
     }
     /// Room for the bubble and the z's above the mascot.
-    static let stageSize = CGSize(width: 220, height: spriteSize.height + 70)
+    static let stageSize = CGSize(width: 260, height: spriteSize.height + 100)
 
     private var dragStart: (mouse: NSPoint, origin: NSPoint)?
     private var isDragging = false
@@ -170,6 +159,8 @@ final class PetView: NSView {
         }
     }
 
+    override func rightMouseDown(with event: NSEvent) { onRightClick?(event) }
+
     override func mouseUp(with event: NSEvent) {
         defer { dragStart = nil; isDragging = false }
         if isDragging {
@@ -183,14 +174,24 @@ final class PetView: NSView {
     // MARK: - Looks
 
     func say(_ text: String, for seconds: TimeInterval = 2.8) {
+        say(lines: [text], for: seconds)
+    }
+
+    /// A bubble above the mascot, one row per line.
+    func say(lines: [String], for seconds: TimeInterval = 2.8) {
         let font = NSFont.systemFont(ofSize: 12, weight: .semibold)
-        let width = min(Self.stageSize.width - 8, ceil((text as NSString).size(withAttributes: [.font: font]).width) + 22)
+        let widest = lines.map { ceil(($0 as NSString).size(withAttributes: [.font: font]).width) }.max() ?? 0
+        let width = min(Self.stageSize.width - 8, widest + 24)
+        let lineHeight: CGFloat = 16
+        let height = CGFloat(lines.count) * lineHeight + 10
         CATransaction.begin()
         CATransaction.setDisableActions(true)
-        bubbleText.string = text
-        bubble.bounds = CGRect(x: 0, y: 0, width: width, height: 26)
-        bubble.position = CGPoint(x: Self.stageSize.width / 2, y: Self.spriteSize.height + 26)
-        bubbleText.frame = CGRect(x: 6, y: 4.5, width: width - 12, height: 17)
+        bubbleText.string = lines.joined(separator: "\n")
+        bubbleText.alignmentMode = lines.count > 1 ? .left : .center
+        bubbleText.isWrapped = false
+        bubble.bounds = CGRect(x: 0, y: 0, width: width, height: height)
+        bubble.position = CGPoint(x: Self.stageSize.width / 2, y: Self.spriteSize.height + height / 2 + 12)
+        bubbleText.frame = CGRect(x: 12, y: 4, width: width - 24, height: height - 8)
         bubbleText.truncationMode = .end
         CATransaction.commit()
 
@@ -275,7 +276,6 @@ final class DesktopPet {
     private var sleepTask: Task<Void, Never>?
     private var isAsleep = false
     private var isCarried = false
-    private var clicks = 0
     private var celebrationsSeen = 0
     private var lastStatus: SessionStatus??
 
@@ -309,6 +309,7 @@ final class DesktopPet {
 
         let view = PetView(frame: NSRect(origin: .zero, size: PetView.stageSize))
         view.onClick = { [weak self] count in self?.clicked(count) }
+        view.onRightClick = { [weak self] event in self?.showMenu(event) }
         view.onDragChanged = { [weak self] carried in self?.carried(carried) }
         view.onDragEnded = { [weak self] origin in self?.dropped(at: origin) }
         panel.contentView = view
@@ -395,7 +396,7 @@ final class DesktopPet {
             view.sprite.show(.armsUp)
             view.sprite.loop([.armsUp, .normal], duration: 0.6)
         case .done:
-            view.sprite.blink(open: .happy, every: 3.6)
+            view.sprite.blink(open: .normal, every: 3.6)
         default:
             view.sprite.blink(open: .normal, every: 3.2)
         }
@@ -449,11 +450,37 @@ final class DesktopPet {
             wake(greeting: "Günaydın! ☀️")
             return
         }
-        clicks += 1
         view.sprite.hop()
         view.blushFor(2)
-        view.say(PetBrain.line(clicks - 1, store: model.claude))
+        view.say(lines: PetBrain.info(store: model.claude, battery: model.battery), for: 4.5)
         scheduleSleep()
+    }
+
+    private func showMenu(_ event: NSEvent) {
+        guard let view else { return }
+        let menu = NSMenu()
+        menu.addItem(ClosureMenuItem("Bilgileri göster", symbol: "info.circle") { [weak self] in self?.clicked(1) })
+        menu.addItem(ClosureMenuItem("Paneli aç", symbol: "rectangle.topthird.inset.filled") { [weak self] in self?.openPanel() })
+        if isAsleep {
+            menu.addItem(ClosureMenuItem("Uyandır", symbol: "sun.max") { [weak self] in self?.wake(greeting: "Günaydın! ☀️") })
+        } else {
+            menu.addItem(ClosureMenuItem("Uyut", symbol: "moon.zzz") { [weak self] in self?.fallAsleep() })
+        }
+        menu.addItem(ClosureMenuItem("Konumu sıfırla", symbol: "arrow.uturn.backward") { [weak self] in self?.resetPosition() })
+        menu.addItem(.separator())
+        let hide = ClosureMenuItem("Maskotu gizle", symbol: "eye.slash") { [weak self] in
+            self?.stop()
+            DesktopPet.isEnabled = false
+        }
+        hide.toolTip = "Menü çubuğundaki NotchHub menüsünden tekrar açabilirsin."
+        menu.addItem(hide)
+        NSMenu.popUpContextMenu(menu, with: event, for: view)
+    }
+
+    private func resetPosition() {
+        UserDefaults.standard.removeObject(forKey: Self.positionKey)
+        panel?.setFrameOrigin(defaultOrigin())
+        view?.land()
     }
 
     private func carried(_ carried: Bool) {
@@ -486,4 +513,20 @@ final class DesktopPet {
         let inside = view.mascotFrame.insetBy(dx: -6, dy: -6).contains(local)
         if panel.ignoresMouseEvents == inside { panel.ignoresMouseEvents = !inside }
     }
+}
+
+/// A menu item that runs a closure.
+private final class ClosureMenuItem: NSMenuItem {
+    private let handler: () -> Void
+
+    init(_ title: String, symbol: String, handler: @escaping () -> Void) {
+        self.handler = handler
+        super.init(title: title, action: #selector(fire), keyEquivalent: "")
+        target = self
+        image = NSImage(systemSymbolName: symbol, accessibilityDescription: nil)
+    }
+
+    required init(coder: NSCoder) { fatalError() }
+
+    @objc private func fire() { handler() }
 }

@@ -127,6 +127,19 @@ final class ClaudeStore {
         }
     }
 
+    /// "dolphydesk çalışıyor" for one session, "2 çalışıyor · 1 bitti" for several, most urgent first.
+    var statusSummary: String? {
+        let all = sortedSessions
+        guard let first = all.first else { return nil }
+        let tr = Locale(identifier: "tr")
+        if all.count == 1 { return "\(first.label) \(first.status.title.lowercased(with: tr))" }
+        var counts: [SessionStatus: Int] = [:]
+        for session in all { counts[session.status, default: 0] += 1 }
+        return counts.keys.sorted { Self.urgency($0) < Self.urgency($1) }
+            .map { "\(counts[$0]!) \($0.title.lowercased(with: tr))" }
+            .joined(separator: " · ")
+    }
+
     static func urgency(_ status: SessionStatus) -> Int {
         switch status {
         case .needsApproval: 0

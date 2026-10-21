@@ -106,9 +106,26 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
 
     // MARK: - Menu bar
 
+    /// A laptop screen with a notch, drawn as a template so it follows the menu bar's colour.
+    static let menuBarIcon: NSImage = {
+        let image = NSImage(size: NSSize(width: 20, height: 16), flipped: true) { _ in
+            let screen = NSBezierPath(roundedRect: NSRect(x: 1.75, y: 2.25, width: 16.5, height: 11.5), xRadius: 2.5, yRadius: 2.5)
+            screen.lineWidth = 1.5
+            NSColor.black.setStroke()
+            screen.stroke()
+            let notch = NSBezierPath(roundedRect: NSRect(x: 7, y: 1.5, width: 6, height: 4), xRadius: 1.4, yRadius: 1.4)
+            NSColor.black.setFill()
+            notch.fill()
+            return true
+        }
+        image.isTemplate = true
+        image.accessibilityDescription = "NotchHub"
+        return image
+    }()
+
     private func setUpStatusItem() {
         let item = NSStatusBar.system.statusItem(withLength: NSStatusItem.squareLength)
-        item.button?.image = NSImage(systemSymbolName: "rectangle.topthird.inset.filled", accessibilityDescription: "NotchHub")
+        item.button?.image = Self.menuBarIcon
         let menu = NSMenu()
         menu.delegate = self
         item.menu = menu

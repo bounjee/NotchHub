@@ -23,7 +23,7 @@ import Testing
 
     @Test func sleepingEyesAreClosedNotGone() {
         let row = Clawd.rows(.asleep)[1]
-        #expect(row.enumerated().filter { $0.element == "_" }.map(\.offset) == [5, 12])
+        #expect(row.enumerated().filter { $0.element == "_" }.map(\.offset) == [4, 5, 12, 13])
         // In the double-height image, the upper half of each eye is body and the lower half is open.
         guard let image = Clawd.image(.asleep, color: .white),
               let data = image.dataProvider?.data, let bytes = CFDataGetBytePtr(data) else {
@@ -32,9 +32,12 @@ import Testing
         }
         let alpha = { (x: Int, yFromTop: Int) in bytes[yFromTop * image.bytesPerRow + x * 4 + 3] }
         #expect(image.height == Clawd.height * 2)
-        #expect(alpha(5, 2) > 0)   // eyelid
-        #expect(alpha(5, 3) == 0)  // closed-eye line
-        #expect(alpha(4, 3) > 0)   // body next to it
+        for x in [4, 5, 12, 13] {
+            #expect(alpha(x, 2) > 0)   // eyelid
+            #expect(alpha(x, 3) == 0)  // closed-eye line, two pixels wide
+        }
+        #expect(alpha(3, 3) > 0)   // body next to it
+        #expect(alpha(6, 3) > 0)
     }
 }
 
@@ -51,19 +54,31 @@ import Testing
         return store
     }
 
-    @Test func smallTalkWhenNothingIsGoingOn() {
-        let store = store()
-        #expect(PetBrain.summary(of: store) == nil)
-        #expect(PetBrain.line(0, store: store) == PetBrain.chatter[0])
-        #expect(PetBrain.line(1, store: store) == PetBrain.chatter[1])
+    @Test func threeFactsWhenNothingIsGoingOn() {
+        let battery = BatteryMonitor()
+        battery.update(percent: 80, plugged: true, charging: true)
+        #expect(PetBrain.info(store: store(), battery: battery) == ["Claude: boşta", "Limit: bilgi yok", "Pil: %80 · şarjda"])
     }
 
-    @Test func newsComesFirstThenUsageThenTalk() {
+    @Test func threeFactsWhileWorking() {
         let store = store(working: true, usage: 42)
-        #expect(PetBrain.line(0, store: store) == "dolphydesk · çalışıyor")
-        #expect(PetBrain.line(1, store: store) == "5 saatlik limit: %42")
-        #expect(PetBrain.chatter.contains(PetBrain.line(2, store: store)))
-        #expect(PetBrain.line(3, store: store) == "dolphydesk · çalışıyor")
+        let lines = PetBrain.info(store: store, battery: nil)
+        #expect(lines[0] == "Claude: dolphydesk çalışıyor")
+        #expect(lines[1] == "Limit: 5 saat %42")
+        #expect(lines.count == 2)
+    }
+
+    @Test func latestFinishIsNamed() {
+        let store = ClaudeStore()
+        let start = Date()
+        for (id, project, end) in [("a", "studio", 10.0), ("b", "dolphydesk", 50.0)] {
+            store.handle(HookEvent(json: Data(#"{"hook_event_name":"UserPromptSubmit","session_id":"\#(id)","cwd":"/x","notchhub_project":"\#(project)"}"#.utf8))!, now: start)
+            store.handle(HookEvent(json: Data(#"{"hook_event_name":"PreToolUse","session_id":"\#(id)","tool_name":"Bash","tool_input":{"command":"ls"},"tool_use_id":"\#(id)"}"#.utf8))!, now: start)
+            store.handle(HookEvent(json: Data(#"{"hook_event_name":"Stop","session_id":"\#(id)","background_tasks":[]}"#.utf8))!, now: start.addingTimeInterval(end))
+        }
+        let lines = PetBrain.info(store: store, battery: nil, now: start.addingTimeInterval(170))
+        #expect(lines[0] == "Claude: 2 bitti")
+        #expect(lines[2] == "Son biten: dolphydesk · 2 dk önce")
     }
 
     @Test func napsAfterAWhile() {

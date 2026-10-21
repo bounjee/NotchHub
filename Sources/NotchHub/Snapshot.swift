@@ -110,6 +110,38 @@ enum Snapshot {
         model.close()
         capture("17-closed-attention")
 
+        // Desktop mascot: info bubble, then asleep.
+        let pet = PetView(frame: NSRect(origin: .zero, size: PetView.stageSize))
+        let petWindow = NSWindow(contentRect: NSRect(x: -3000, y: -2000, width: PetView.stageSize.width, height: PetView.stageSize.height),
+                                 styleMask: .borderless, backing: .buffered, defer: false)
+        petWindow.backgroundColor = NSColor(white: 0.25, alpha: 1)
+        petWindow.contentView = pet
+        petWindow.orderFrontRegardless()
+        func capturePet(_ name: String) {
+            RunLoop.main.run(until: Date().addingTimeInterval(0.6))
+            guard let rep = pet.bitmapImageRepForCachingDisplay(in: pet.bounds) else { return }
+            pet.cacheDisplay(in: pet.bounds, to: rep)
+            try? rep.representation(using: .png, properties: [:])?.write(to: directory.appendingPathComponent("\(name).png"))
+        }
+        pet.sprite.show(.normal)
+        pet.say(lines: PetBrain.info(store: claude, battery: battery), for: 30)
+        capturePet("30-pet-info")
+        pet.say(lines: [], for: 0.01)
+        pet.sprite.show(.asleep)
+        pet.setSleeping(true)
+        capturePet("31-pet-asleep")
+
+        // Menu bar icon, enlarged.
+        let icon = AppDelegate.menuBarIcon
+        let big = NSImage(size: NSSize(width: 160, height: 128), flipped: false) { rect in
+            NSColor.white.setFill(); rect.fill()
+            icon.draw(in: rect)
+            return true
+        }
+        if let tiff = big.tiffRepresentation, let rep = NSBitmapImageRep(data: tiff) {
+            try? rep.representation(using: .png, properties: [:])?.write(to: directory.appendingPathComponent("32-menubar-icon.png"))
+        }
+
         NSApp.terminate(nil)
     }
 }

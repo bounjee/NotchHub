@@ -10,6 +10,8 @@ APP="dist/NotchHub.app"
 rm -rf "$APP"
 mkdir -p "$APP/Contents/MacOS" "$APP/Contents/Resources"
 cp "$BIN/NotchHub" "$BIN/notch-hook" "$APP/Contents/MacOS/"
+# Regenerate with: swift scripts/make-icon.swift, then iconutil (see README).
+cp Resources/AppIcon.icns "$APP/Contents/Resources/"
 
 VERSION="$(git describe --tags --always 2>/dev/null || echo 1.0)"
 cat > "$APP/Contents/Info.plist" <<PLIST
@@ -21,6 +23,7 @@ cat > "$APP/Contents/Info.plist" <<PLIST
     <key>CFBundleName</key><string>NotchHub</string>
     <key>CFBundleDisplayName</key><string>NotchHub</string>
     <key>CFBundleExecutable</key><string>NotchHub</string>
+    <key>CFBundleIconFile</key><string>AppIcon</string>
     <key>CFBundlePackageType</key><string>APPL</string>
     <key>CFBundleShortVersionString</key><string>1.0</string>
     <key>CFBundleVersion</key><string>${VERSION}</string>

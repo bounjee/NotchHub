@@ -460,7 +460,7 @@ private struct ClaudeHeadline: View {
                         .lineLimit(1)
                         .fixedSize()
                 } else {
-                    Text(Self.summary(sessions))
+                    Text(store.statusSummary ?? "")
                         .font(.system(size: 12, weight: .medium))
                         .foregroundStyle(.white.opacity(0.85))
                         .lineLimit(1)
@@ -470,14 +470,6 @@ private struct ClaudeHeadline: View {
         }
     }
 
-    /// "2 çalışıyor · 1 bitti", most urgent first.
-    static func summary(_ sessions: [ClaudeSession]) -> String {
-        var counts: [SessionStatus: Int] = [:]
-        for session in sessions { counts[session.status, default: 0] += 1 }
-        return counts.keys.sorted { ClaudeStore.urgency($0) < ClaudeStore.urgency($1) }
-            .map { "\(counts[$0]!) \($0.title.lowercased(with: Locale(identifier: "tr")))" }
-            .joined(separator: " · ")
-    }
 }
 
 /// The closed notch's status: one glyph for the most urgent activity, with a count.
