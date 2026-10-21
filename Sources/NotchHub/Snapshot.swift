@@ -113,6 +113,8 @@ enum Snapshot {
 
         // The desktop mascot: talking, then napping.
         write(mascots(), to: directory.appendingPathComponent("mascot.png"))
+        writeGIF((0..<mascotFrames).map { mascots(frame: $0, rounded: false) }, delay: 0.12,
+                 to: directory.appendingPathComponent("mascot.gif"))
 
         NSApp.terminate(nil)
     }
@@ -150,7 +152,12 @@ enum Snapshot {
     }
 
     /// The mascot talking and napping, drawn from its pixel art so it stays crisp.
-    private static func mascots() -> NSImage {
+    /// One loop of the animated card: four taps a side, a pause, a blink, rising z's.
+    private static let mascotFrames = 24
+
+    /// The mascot's moods side by side. With a frame number, the poses for that moment of
+    /// the animation; GIF frames get square corners, since GIF has no soft transparency.
+    private static func mascots(frame: Int? = nil, rounded: Bool = true) -> NSImage {
         let pixel: CGFloat = 7, cell = CGSize(width: 260, height: 210), padding: CGFloat = 24, gap: CGFloat = 20
         let sprite = CGSize(width: CGFloat(Clawd.width) * pixel, height: CGFloat(Clawd.height) * pixel * Clawd.pixelAspect)
         let moods: [(Clawd.Pose, String)] = [
@@ -158,12 +165,20 @@ enum Snapshot {
         ]
         let size = CGSize(width: padding * 2 + cell.width * CGFloat(moods.count) + gap * CGFloat(moods.count - 1),
                           height: padding * 2 + cell.height)
-        return render(size: size) {
+        return render(size: size, rounded: rounded) {
             for (index, mood) in moods.enumerated() {
+                var pose = mood.0
+                if let frame {
+                    switch mood.0 {
+                    case .normal: pose = [9, 10, 21].contains(frame) ? .blink : .normal
+                    case .typeLeft: pose = frame >= 18 ? .typeIdle : (frame / 2) % 2 == 0 ? .typeLeft : .typeRight
+                    default: break
+                    }
+                }
                 let left = padding + CGFloat(index) * (cell.width + gap)
                 let spriteRect = CGRect(x: left + (cell.width - sprite.width) / 2, y: padding + cell.height - 34 - sprite.height,
                                         width: sprite.width, height: sprite.height)
-                if let image = Clawd.image(mood.0, color: Clawd.orange) {
+                if let image = Clawd.image(pose, color: Clawd.orange) {
                     NSImage(cgImage: image, size: sprite).draw(in: spriteRect, from: .zero, operation: .sourceOver, fraction: 1,
                                                                respectFlipped: true, hints: [.interpolation: NSImageInterpolation.none.rawValue])
                 }
@@ -171,8 +186,10 @@ enum Snapshot {
                     // The typing pose already holds the laptop.
                 } else if mood.0 == .asleep {
                     for (step, z) in ["z", "z", "Z"].enumerated() {
-                        draw(z, at: CGPoint(x: spriteRect.maxX - 10 + CGFloat(step) * 16, y: spriteRect.minY - 26 - CGFloat(step) * 20),
-                             size: 14 + CGFloat(step) * 4, weight: .heavy, alpha: 0.85 - CGFloat(step) * 0.15)
+                        // Animated: each z drifts up and fades, one after another.
+                        let rise = frame.map { CGFloat(($0 + step * 8) % mascotFrames) / CGFloat(mascotFrames) } ?? CGFloat(step) / 3
+                        draw(z, at: CGPoint(x: spriteRect.maxX - 10 + rise * 48, y: spriteRect.minY - 20 - rise * 60),
+                             size: 14 + rise * 10, weight: .heavy, alpha: frame == nil ? 0.85 - CGFloat(step) * 0.15 : 0.9 * (1 - rise))
                     }
                 } else {
                     let text = NSAttributedString(string: "web-app · Working", attributes: attributes(size: 13, weight: .semibold, alpha: 1))
@@ -193,7 +210,7 @@ enum Snapshot {
     }
 
     /// Draws on a dark rounded card at twice the size, in a top-left coordinate space.
-    private static func render(size: CGSize, _ body: () -> Void) -> NSImage {
+    private static func render(size: CGSize, rounded: Bool = true, _ body: () -> Void) -> NSImage {
         let rep = NSBitmapImageRep(bitmapDataPlanes: nil, pixelsWide: Int(size.width * 2), pixelsHigh: Int(size.height * 2),
                                    bitsPerSample: 8, samplesPerPixel: 4, hasAlpha: true, isPlanar: false,
                                    colorSpaceName: .deviceRGB, bytesPerRow: 0, bitsPerPixel: 0)!
@@ -205,7 +222,7 @@ enum Snapshot {
         context.cgContext.scaleBy(x: 1, y: -1)
         context.imageInterpolation = .high
         galleryBackground.setFill()
-        NSBezierPath(roundedRect: CGRect(origin: .zero, size: size), xRadius: 18, yRadius: 18).fill()
+        NSBezierPath(roundedRect: CGRect(origin: .zero, size: size), xRadius: rounded ? 18 : 0, yRadius: rounded ? 18 : 0).fill()
         // Text and images expect a flipped context to draw upright.
         let flipped = NSGraphicsContext(cgContext: context.cgContext, flipped: true)
         NSGraphicsContext.current = flipped
@@ -222,6 +239,20 @@ enum Snapshot {
 
     private static func draw(_ text: String, at point: CGPoint, size: CGFloat, weight: NSFont.Weight, alpha: CGFloat) {
         NSAttributedString(string: text, attributes: attributes(size: size, weight: weight, alpha: alpha)).draw(at: point)
+    }
+
+    private static func writeGIF(_ frames: [NSImage], delay: Double, to url: URL) {
+        guard let destination = CGImageDestinationCreateWithURL(url as CFURL, "com.compuserve.gif" as CFString, frames.count, nil) else { return }
+        CGImageDestinationSetProperties(destination, [
+            kCGImagePropertyGIFDictionary: [kCGImagePropertyGIFLoopCount: 0],
+        ] as CFDictionary)
+        for frame in frames {
+            guard let image = (frame.representations.first as? NSBitmapImageRep)?.cgImage else { continue }
+            CGImageDestinationAddImage(destination, image, [
+                kCGImagePropertyGIFDictionary: [kCGImagePropertyGIFDelayTime: delay, kCGImagePropertyGIFUnclampedDelayTime: delay],
+            ] as CFDictionary)
+        }
+        CGImageDestinationFinalize(destination)
     }
 
     private static func write(_ image: NSImage, to url: URL) {
