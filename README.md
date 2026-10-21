@@ -25,7 +25,7 @@ Hover over the notch or click it to open the panel. Switch between the three wit
   - An orange pulse when a permission request is waiting.
   - A green check for finished work you haven't looked at yet.
   - When nothing is going on, the notch stays plain.
-- **"✓ project done".** When a session finishes, its project name shows beside the notch for three seconds.
+- **Who finished, who's asking.** When a session finishes, a green check and its project name show beside the notch for three seconds. When Claude asks you something, a question icon and the project name show instead, and the session waits as "Waiting for you".
 - **Answer permission requests from the notch.**
   - Allow, Always (saves the rule Claude Code suggests) or Deny.
   - The terminal prompt stays live, so whichever you answer first wins.
@@ -148,7 +148,7 @@ The app icon is drawn by `scripts/make-icon.swift`; `./scripts/make-icon.sh` reb
 NotchHub, MacBook çentiğini işe yarar hale getirir. Üç şey yapar, fazlasını değil:
 
 1. **Claude Code:** oturumların ne yaptığını gösterir.
-   - Çalışırken yükleniyor göstergesi, izin beklerken turuncu nokta, bitince "✓ proje bitti" çıkar.
+   - Çalışırken yükleniyor göstergesi, izin beklerken turuncu nokta, bitince yeşil tik ve proje adı, soru sorunca soru ikonu ve proje adı çıkar.
    - İzin isteklerine çentikten İzin ver / Her zaman / Reddet ile cevap verirsin.
    - Satıra tıklayınca oturumun terminaline gidersin.
    - 5 saatlik ve haftalık plan kullanımını gösterir.

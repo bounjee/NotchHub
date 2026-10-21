@@ -7,7 +7,6 @@
 "Waiting for you" = "Seni bekliyor";
 "Done" = "Bitti";
 "Error" = "Hata";
-"done" = "bitti";
 
 /* Panel */
 "No active Claude Code sessions" = "Aktif Claude Code oturumu yok";
@@ -117,7 +116,6 @@
 "Click to copy" = "Kopyalamak için tıkla";
 
 /* Questions */
-"asks you" = "soru soruyor";
 "Plan ready for your review" = "Plan onayını bekliyor";
 
 /* Short, clear lines for the notch and the mascot */

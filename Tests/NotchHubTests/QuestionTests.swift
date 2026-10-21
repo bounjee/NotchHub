@@ -134,7 +134,8 @@ import Testing
 
     @Test func peeksNameTheirSourceAndFitTheirWing() {
         #expect(PeekReason.question("api").title == "api")
-        #expect(PeekReason.question("api").detail == "asks you")
+        #expect(PeekReason.question("api").detail == nil)
+        #expect(PeekReason.claudeDone("api").detail == nil)
         #expect(PeekReason.copied("https://example.com/a").detail == "link")
         #expect(PeekReason.downloaded("a-very-long-file-name-from-the-web.zip").title == "Download")
         let short = PeekReason.claudeDone("api").wingWidth

@@ -74,10 +74,10 @@ enum PeekReason: Equatable {
         }
     }
 
+    /// Nothing for Claude's announcements: the icon already says done or question, the name says where.
     var detail: String? {
         switch self {
-        case .claudeDone: String(localized: "done")
-        case .question: String(localized: "asks you")
+        case .claudeDone, .question: nil
         case .copied(let text): ClipboardKind.detect(text).name
         case .screenshot, .downloaded: String(localized: "on the shelf")
         case .usage, .permission, .summoned: nil
