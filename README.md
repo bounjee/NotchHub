@@ -2,11 +2,19 @@
 
 <h1 align="center">NotchHub</h1>
 
-<p align="center">Your MacBook notch, made useful: Claude Code, a shelf and a clipboard. Plus a pixel mascot.</p>
+<p align="center"><b>Watch a movie, not your terminal.</b><br>Your MacBook notch tells you when Claude Code is done or has a question, and keeps your files and clipboard one hover away.</p>
 
 <p align="center"><a href="https://github.com/bounjee/NotchHub/actions/workflows/test.yml"><img src="https://github.com/bounjee/NotchHub/actions/workflows/test.yml/badge.svg" alt="Tests"></a></p>
 
+<p align="center"><a href="https://github.com/bounjee/NotchHub/releases/latest"><b>Download for macOS</b></a> · free and open source · Apple silicon, macOS 15+</p>
+
 <p align="center"><img src="docs/open-panel.png" width="640" alt="The open notch panel"></p>
+
+Give Claude a task, put a video on, and forget the terminal:
+
+- **A glance at the notch** tells you what's happening: a spinner while Claude works, a green check and the project name when it's done, a question icon when it asks you something.
+- **Permission requests** come to you. Allow or deny them from the notch, without leaving what you're watching.
+- **Files and copies** stay at hand. Drop files on the notch, and find what you copied earlier in the clipboard history.
 
 NotchHub does three things, and nothing else:
 
@@ -145,7 +153,9 @@ The app icon is drawn by `scripts/make-icon.swift`; `./scripts/make-icon.sh` reb
 
 ## Türkçe
 
-NotchHub, MacBook çentiğini işe yarar hale getirir. Üç şey yapar, fazlasını değil:
+**Terminale değil filmine bak.** Claude'a işi ver, videonu aç. İş bitince ya da Claude bir şey sorunca çentik sana haber verir. İzin isteklerini çentikten onaylarsın, dosyaların ve kopyaladıkların bir fare hareketi uzakta durur.
+
+NotchHub üç şey yapar, fazlasını değil:
 
 1. **Claude Code:** oturumların ne yaptığını gösterir.
    - Çalışırken yükleniyor göstergesi, izin beklerken turuncu nokta, bitince yeşil tik ve proje adı, soru sorunca soru ikonu ve proje adı çıkar.

@@ -15,6 +15,8 @@ cp Resources/AppIcon.icns "$APP/Contents/Resources/"
 # English is the development language (the keys); other languages live in <lang>.lproj.
 for lproj in Resources/*.lproj; do cp -R "$lproj" "$APP/Contents/Resources/"; done
 
+# The release version lives in VERSION; tag releases with it (v1.1.0).
+SHORT_VERSION="$(tr -d '[:space:]' < VERSION)"
 # Build number: the commit count, so every pushed commit builds a higher version.
 VERSION="$(git rev-list --count HEAD 2>/dev/null || echo 1)"
 cat > "$APP/Contents/Info.plist" <<PLIST
@@ -28,7 +30,7 @@ cat > "$APP/Contents/Info.plist" <<PLIST
     <key>CFBundleExecutable</key><string>NotchHub</string>
     <key>CFBundleIconFile</key><string>AppIcon</string>
     <key>CFBundlePackageType</key><string>APPL</string>
-    <key>CFBundleShortVersionString</key><string>1.0</string>
+    <key>CFBundleShortVersionString</key><string>${SHORT_VERSION}</string>
     <key>CFBundleVersion</key><string>${VERSION}</string>
     <key>LSMinimumSystemVersion</key><string>15.0</string>
     <key>LSUIElement</key><true/>
