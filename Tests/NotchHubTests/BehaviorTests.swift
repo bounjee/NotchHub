@@ -71,7 +71,10 @@ func makeModel() -> NotchModel {
         model.showPeek(.claudeDone("a"), hovering: false)
         model.showPeek(.claudeDone("b"), hovering: false)
         #expect(model.peek == .claudeDone("a"))
-        try await Task.sleep(for: .milliseconds(3300))
+        try await Task.sleep(for: .milliseconds(2800))
+        #expect(model.peek == .claudeDone("a"))
+        // Allow for a late timer on a busy CI runner.
+        for _ in 0..<50 where model.peek == .claudeDone("a") { try await Task.sleep(for: .milliseconds(100)) }
         #expect(model.peek == .claudeDone("b"))
     }
 
@@ -115,7 +118,10 @@ func makeModel() -> NotchModel {
     @Test func peekEndsByItself() async throws {
         let model = makeModel()
         model.showPeek(.claudeDone("x"), hovering: false)
-        try await Task.sleep(for: .milliseconds(3300))
+        try await Task.sleep(for: .milliseconds(2800))
+        #expect(model.isPeeking)
+        // A busy CI runner can fire the 3 s timer late; allow a few seconds of slack.
+        for _ in 0..<50 where model.isPeeking { try await Task.sleep(for: .milliseconds(100)) }
         #expect(model.presentation == .closed)
         #expect(!model.isPeeking)
     }
