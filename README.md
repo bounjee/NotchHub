@@ -41,7 +41,7 @@ NotchHub keeps an eye on your Claude Code sessions from the notch. It shows what
 ## Install
 
 ```bash
-git clone https://github.com/<you>/NotchHub.git
+git clone https://github.com/bounjee/NotchHub.git
 ```
 
 ```bash
