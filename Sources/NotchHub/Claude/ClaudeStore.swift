@@ -104,7 +104,7 @@ final class ClaudeStore {
     /// Called when the panel should briefly open by itself.
     var onPeek: ((PeekReason) -> Void)?
 
-    static let doneLifetime: TimeInterval = 10 * 60
+    static let doneLifetime: TimeInterval = 5 * 60
     nonisolated static let minimumWork: TimeInterval = 4
     /// Sessions closed without SessionEnd (terminal window closed) stop sending events.
     static let staleLifetime: TimeInterval = 30 * 60
@@ -172,6 +172,15 @@ final class ClaudeStore {
     }
 
     /// The panel was opened: finished turns count as seen.
+    /// Something else happened in the notch: the green check for finished work steps aside.
+    /// Errors keep their warning until the panel is opened.
+    func markFinishedSeen() {
+        let finished = sessions.keys.filter { sessions[$0]?.status == .done && sessions[$0]?.unseen == true }
+        guard !finished.isEmpty else { return }
+        for id in finished { sessions[id]?.unseen = false }
+        refreshHeadline()
+    }
+
     func markSeen() {
         guard sessions.values.contains(where: \.unseen) else { return }
         for id in sessions.keys where sessions[id]?.unseen == true { sessions[id]?.unseen = false }

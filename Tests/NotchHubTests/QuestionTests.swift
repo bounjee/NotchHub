@@ -76,3 +76,27 @@ import Testing
         #expect(model.peek == .claudeDone("api"))
     }
 }
+
+@MainActor @Suite struct FinishedCheckTests {
+    @Test func otherActivityClearsTheDoneCheckButNotErrors() {
+        let model = makeModel()
+        let store = model.claude
+        func send(_ name: String, _ session: String, _ fields: [String: Any] = [:]) {
+            var object: [String: Any] = ["hook_event_name": name, "session_id": session, "cwd": "/Users/me/code/\(session)"]
+            object.merge(fields) { $1 }
+            store.handle(HookEvent(json: try! JSONSerialization.data(withJSONObject: object))!)
+        }
+        send("UserPromptSubmit", "a")
+        send("PreToolUse", "a", ["tool_name": "Bash", "tool_input": ["command": "ls"], "tool_use_id": "1"])
+        send("Stop", "a", ["background_tasks": []])
+        #expect(store.indicator?.kind == .done)
+
+        model.showPeek(.copied("hello"), hovering: false)
+        #expect(store.indicator == nil)
+        #expect(store.sessions["a"]?.status == .done)
+
+        send("StopFailure", "b", ["error": "rate_limit"])
+        model.showPeek(.downloaded("file.zip"), hovering: false)
+        #expect(store.indicator?.kind == .error)
+    }
+}

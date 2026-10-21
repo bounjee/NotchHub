@@ -155,6 +155,11 @@ final class NotchModel {
     /// Shows a peek for a few seconds. Never interrupts a panel the user opened,
     /// and a compact activity never replaces an open peek.
     func showPeek(_ reason: PeekReason, hovering: Bool) {
+        // Copies, screenshots and downloads take the notch over; an old "done" check would only linger.
+        switch reason {
+        case .copied, .screenshot, .downloaded: claude.markFinishedSeen()
+        default: break
+        }
         if case .claudeDone(let label) = reason {
             claudeCelebration += 1
             lastFinished = label
