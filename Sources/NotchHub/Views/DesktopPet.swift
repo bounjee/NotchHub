@@ -6,22 +6,19 @@ enum PetBrain {
     /// Seconds without a touch before it dozes off.
     static let sleepAfter: TimeInterval = 45
 
-    /// The three things worth knowing, shown one per click: Claude, plan usage, the latest
-    /// finish (or the battery when nothing has finished yet).
+    /// The things worth knowing, shown one per click: Claude, plan usage, the latest finish.
     @MainActor
-    static func info(store: ClaudeStore, battery: BatteryMonitor?, now: Date = Date()) -> [String] {
-        var lines = ["Claude: \(store.statusSummary ?? "boşta")"]
+    static func info(store: ClaudeStore, now: Date = Date()) -> [String] {
+        var lines = [String(localized: "Claude: \(store.statusSummary ?? String(localized: "idle"))")]
 
         let limits = store.limits.current(at: now)
         var usage: [String] = []
-        if let window = limits.fiveHour { usage.append("5 saat %\(Int(window.usedPercentage.rounded()))") }
-        if let window = limits.sevenDay { usage.append("hafta %\(Int(window.usedPercentage.rounded()))") }
-        lines.append("Limit: " + (usage.isEmpty ? "bilgi yok" : usage.joined(separator: " · ")))
+        if let window = limits.fiveHour { usage.append(String(localized: "5h \(Int(window.usedPercentage.rounded()))%")) }
+        if let window = limits.sevenDay { usage.append(String(localized: "week \(Int(window.usedPercentage.rounded()))%")) }
+        lines.append(String(localized: "Limit: \(usage.isEmpty ? String(localized: "no data yet") : usage.joined(separator: " · "))"))
 
         if let finished = store.sessions.values.filter({ $0.status == .done }).max(by: { $0.statusSince < $1.statusSince }) {
-            lines.append("Son biten: \(finished.label) · \(shortElapsed(from: finished.statusSince, to: now)) önce")
-        } else if let battery, battery.hasBattery {
-            lines.append("Pil: %\(battery.percent)\(battery.isPluggedIn ? " · şarjda" : "")")
+            lines.append(String(localized: "Last done: \(finished.label) · \(shortElapsed(from: finished.statusSince, to: now)) ago"))
         }
         return lines
     }
@@ -376,13 +373,13 @@ final class DesktopPet {
             wake(greeting: nil)
             view.sprite.hop(twice: true)
             view.blushFor(2.5)
-            view.say("\(model.lastFinished ?? "Claude") bitti ✓")
+            view.say(String(localized: "\(model.lastFinished ?? "Claude") done ✓"))
         }
         let status = model.claude.headlineStatus
         if lastStatus != .some(status), status == .needsApproval {
             wake(greeting: nil)
             view.sprite.hop()
-            view.say("İzin lazım! 🙋", for: 3.5)
+            view.say(String(localized: "Permission needed! 🙋"), for: 3.5)
         }
         lastStatus = .some(status)
         if !isAsleep { restingAnimation() }
@@ -448,11 +445,11 @@ final class DesktopPet {
             return
         }
         if isAsleep {
-            wake(greeting: "Günaydın! ☀️")
+            wake(greeting: String(localized: "Good morning! ☀️"))
             return
         }
         // One fact per click, in turn.
-        let facts = PetBrain.info(store: model.claude, battery: model.battery)
+        let facts = PetBrain.info(store: model.claude)
         clicks += 1
         view.sprite.hop()
         view.blushFor(2)
@@ -463,20 +460,20 @@ final class DesktopPet {
     private func showMenu(_ event: NSEvent) {
         guard let view else { return }
         let menu = NSMenu()
-        menu.addItem(ClosureMenuItem("Bilgi göster", symbol: "info.circle") { [weak self] in self?.clicked(1) })
-        menu.addItem(ClosureMenuItem("Paneli aç", symbol: "rectangle.topthird.inset.filled") { [weak self] in self?.openPanel() })
+        menu.addItem(ClosureMenuItem(String(localized: "Show Info"), symbol: "info.circle") { [weak self] in self?.clicked(1) })
+        menu.addItem(ClosureMenuItem(String(localized: "Open Panel"), symbol: "rectangle.topthird.inset.filled") { [weak self] in self?.openPanel() })
         if isAsleep {
-            menu.addItem(ClosureMenuItem("Uyandır", symbol: "sun.max") { [weak self] in self?.wake(greeting: "Günaydın! ☀️") })
+            menu.addItem(ClosureMenuItem(String(localized: "Wake Up"), symbol: "sun.max") { [weak self] in self?.wake(greeting: String(localized: "Good morning! ☀️")) })
         } else {
-            menu.addItem(ClosureMenuItem("Uyut", symbol: "moon.zzz") { [weak self] in self?.fallAsleep() })
+            menu.addItem(ClosureMenuItem(String(localized: "Sleep"), symbol: "moon.zzz") { [weak self] in self?.fallAsleep() })
         }
-        menu.addItem(ClosureMenuItem("Konumu sıfırla", symbol: "arrow.uturn.backward") { [weak self] in self?.resetPosition() })
+        menu.addItem(ClosureMenuItem(String(localized: "Reset Position"), symbol: "arrow.uturn.backward") { [weak self] in self?.resetPosition() })
         menu.addItem(.separator())
-        let hide = ClosureMenuItem("Maskotu gizle", symbol: "eye.slash") { [weak self] in
+        let hide = ClosureMenuItem(String(localized: "Hide Mascot"), symbol: "eye.slash") { [weak self] in
             self?.stop()
             DesktopPet.isEnabled = false
         }
-        hide.toolTip = "Menü çubuğundaki NotchHub menüsünden tekrar açabilirsin."
+        hide.toolTip = String(localized: "Turn it back on from the NotchHub menu in the menu bar.")
         menu.addItem(hide)
         NSMenu.popUpContextMenu(menu, with: event, for: view)
     }

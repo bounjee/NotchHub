@@ -127,16 +127,15 @@ final class ClaudeStore {
         }
     }
 
-    /// "dolphydesk çalışıyor" for one session, "2 çalışıyor · 1 bitti" for several, most urgent first.
+    /// "my-app · Working" for one session, "2 working · 1 done" for several, most urgent first.
     var statusSummary: String? {
         let all = sortedSessions
         guard let first = all.first else { return nil }
-        let tr = Locale(identifier: "tr")
-        if all.count == 1 { return "\(first.label) \(first.status.title.lowercased(with: tr))" }
+        if all.count == 1 { return "\(first.label) · \(first.status.title)" }
         var counts: [SessionStatus: Int] = [:]
         for session in all { counts[session.status, default: 0] += 1 }
         return counts.keys.sorted { Self.urgency($0) < Self.urgency($1) }
-            .map { "\(counts[$0]!) \($0.title.lowercased(with: tr))" }
+            .map { "\(counts[$0]!) \($0.title.localizedLowercase)" }
             .joined(separator: " · ")
     }
 
@@ -196,7 +195,7 @@ final class ClaudeStore {
         defer { refreshHeadline() }
         defer { locateTerminal(event) }
         defer {
-            log.notice("hook \(event.name, privacy: .public) session=\(String(event.sessionID.prefix(8)), privacy: .public) label=\(self.sessions[event.sessionID]?.label ?? "-", privacy: .public) type=\(event.notificationType ?? "-", privacy: .public) pending=\(self.pending.count) status=\(String(describing: self.sessions[event.sessionID]?.status), privacy: .public)")
+            log.debug("hook \(event.name, privacy: .public) session=\(String(event.sessionID.prefix(8)), privacy: .public) label=\(self.sessions[event.sessionID]?.label ?? "-", privacy: .public) type=\(event.notificationType ?? "-", privacy: .public) pending=\(self.pending.count) status=\(String(describing: self.sessions[event.sessionID]?.status), privacy: .public)")
         }
         lastEventAt = now
         let sid = event.sessionID
@@ -258,8 +257,12 @@ final class ClaudeStore {
             update(sid, event, now) { $0.status = self.hasPending(sid) ? .needsApproval : .working }
 
         case "Notification":
-            guard ["idle_prompt", "agent_needs_input", "elicitation_dialog"].contains(event.notificationType ?? "") else { return }
-            update(sid, event, now) { if $0.status != .needsApproval { $0.status = .waitingForUser } }
+            // `idle_prompt` only means a finished turn has sat unanswered for a minute: the session
+            // stays done. Only a question asked in the middle of a turn waits for the user.
+            guard ["agent_needs_input", "elicitation_dialog"].contains(event.notificationType ?? ""),
+                  sessions[sid]?.status == .working
+            else { touch(sid, now); return }
+            update(sid, event, now) { $0.status = .waitingForUser }
 
         case "Stop":
             resolvePending(in: sid, with: .none)
@@ -320,7 +323,7 @@ final class ClaudeStore {
 
     private func locateTerminal(_ event: HookEvent) {
         guard !event.ancestors.isEmpty, var session = sessions[event.sessionID], session.terminal == nil,
-              let location = TerminalJump.locate(ancestors: event.ancestors)
+              let location = TerminalJump.locate(ancestors: event.ancestors, cwd: event.cwd)
         else { return }
         session.terminal = location
         sessions[event.sessionID] = session
@@ -336,7 +339,7 @@ final class ClaudeStore {
         guard let index = pending.firstIndex(where: { $0.id == id }) else { return }
         let request = pending.remove(at: index)
         defer { refreshHeadline() }
-        log.notice("answered \(String(describing: decision), privacy: .public)")
+        log.debug("answered \(String(describing: decision), privacy: .public)")
         request.responder.reply(Self.replyLine(decision, suggestions: request.suggestions))
         if var session = sessions[request.sessionID], session.status == .needsApproval, !hasPending(request.sessionID) {
             session.status = .working
@@ -350,7 +353,7 @@ final class ClaudeStore {
         guard let index = pending.firstIndex(where: { $0.responder === responder }) else { return }
         let request = pending.remove(at: index)
         defer { refreshHeadline() }
-        log.notice("hook connection closed, request dropped")
+        log.debug("hook connection closed, request dropped")
         if var session = sessions[request.sessionID], session.status == .needsApproval, !hasPending(request.sessionID) {
             session.status = .working
             sessions[request.sessionID] = session

@@ -119,7 +119,7 @@ case "allow":
         decision["updatedPermissions"] = updates
     }
 case "deny":
-    decision = ["behavior": "deny", "message": "Kullanıcı çentikten reddetti"]
+    decision = ["behavior": "deny", "message": "The user denied this from the notch"]
 default:
     exit(0)
 }

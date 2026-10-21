@@ -13,11 +13,9 @@ import Testing
         }
     }
 
-    @Test func eyesMoveWhenLooking() {
+    @Test func eyesOpenAndBlink() {
         let eyes = { (pose: Clawd.Pose) in Clawd.rows(pose)[1].enumerated().filter { $0.element == "." && (3...14).contains($0.offset) }.map(\.offset) }
         #expect(eyes(.normal) == [5, 12])
-        #expect(eyes(.lookLeft) == [4, 11])
-        #expect(eyes(.lookRight) == [6, 13])
         #expect(eyes(.blink).isEmpty)
     }
 
@@ -46,7 +44,7 @@ import Testing
     private func store(working: Bool = false, usage: Double? = nil) -> ClaudeStore {
         let store = ClaudeStore()
         if working {
-            store.handle(HookEvent(json: Data(#"{"hook_event_name":"UserPromptSubmit","session_id":"a","cwd":"/x/dolphydesk"}"#.utf8))!)
+            store.handle(HookEvent(json: Data(#"{"hook_event_name":"UserPromptSubmit","session_id":"a","cwd":"/x/my-app"}"#.utf8))!)
         }
         if let usage {
             let resets = Date().addingTimeInterval(3600).timeIntervalSince1970
@@ -56,37 +54,25 @@ import Testing
     }
 
     @Test func factsComeOneAtATimeInAFixedOrder() {
-        let facts = PetBrain.info(store: store(working: true, usage: 10), battery: nil)
-        #expect(facts.count == 2)
-        #expect(facts[0].hasPrefix("Claude:"))
-        #expect(facts[1].hasPrefix("Limit:"))
+        let facts = PetBrain.info(store: store(working: true, usage: 42))
+        #expect(facts == ["Claude: my-app · Working", "Limit: 5h 42%"])
     }
 
-    @Test func threeFactsWhenNothingIsGoingOn() {
-        let battery = BatteryMonitor()
-        battery.update(percent: 80, plugged: true, charging: true)
-        #expect(PetBrain.info(store: store(), battery: battery) == ["Claude: boşta", "Limit: bilgi yok", "Pil: %80 · şarjda"])
-    }
-
-    @Test func threeFactsWhileWorking() {
-        let store = store(working: true, usage: 42)
-        let lines = PetBrain.info(store: store, battery: nil)
-        #expect(lines[0] == "Claude: dolphydesk çalışıyor")
-        #expect(lines[1] == "Limit: 5 saat %42")
-        #expect(lines.count == 2)
+    @Test func idleWithoutData() {
+        #expect(PetBrain.info(store: store()) == ["Claude: idle", "Limit: no data yet"])
     }
 
     @Test func latestFinishIsNamed() {
         let store = ClaudeStore()
         let start = Date()
-        for (id, project, end) in [("a", "studio", 10.0), ("b", "dolphydesk", 50.0)] {
+        for (id, project, end) in [("a", "studio", 10.0), ("b", "my-app", 50.0)] {
             store.handle(HookEvent(json: Data(#"{"hook_event_name":"UserPromptSubmit","session_id":"\#(id)","cwd":"/x","notchhub_project":"\#(project)"}"#.utf8))!, now: start)
             store.handle(HookEvent(json: Data(#"{"hook_event_name":"PreToolUse","session_id":"\#(id)","tool_name":"Bash","tool_input":{"command":"ls"},"tool_use_id":"\#(id)"}"#.utf8))!, now: start)
             store.handle(HookEvent(json: Data(#"{"hook_event_name":"Stop","session_id":"\#(id)","background_tasks":[]}"#.utf8))!, now: start.addingTimeInterval(end))
         }
-        let lines = PetBrain.info(store: store, battery: nil, now: start.addingTimeInterval(170))
-        #expect(lines[0] == "Claude: 2 bitti")
-        #expect(lines[2] == "Son biten: dolphydesk · 2 dk önce")
+        let lines = PetBrain.info(store: store, now: start.addingTimeInterval(170))
+        #expect(lines[0] == "Claude: 2 done")
+        #expect(lines[2] == "Last done: my-app · 2m ago")
     }
 
     @Test func napsAfterAWhile() {

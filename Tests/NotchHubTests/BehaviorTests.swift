@@ -16,40 +16,28 @@ private func bash(_ command: String, id: String? = nil) -> [String: Any] {
 }
 
 @MainActor
-private func makeModel() -> NotchModel {
-    let dir = FileManager.default.temporaryDirectory.appendingPathComponent("model-\(UUID().uuidString)")
-    return NotchModel(
-        claude: ClaudeStore(),
-        shelf: Shelf(storeURL: dir.appendingPathComponent("shelf.json")),
-        clipboard: ClipboardHistory(pasteboard: NSPasteboard(name: .init("notchhub-test-\(UUID())"))),
-        battery: BatteryMonitor()
-    )
-}
+private func makeModel() -> NotchModel { NotchModel(claude: ClaudeStore()) }
 
 @MainActor @Suite struct NotchModelTests {
-    @Test func compactActivityShowsWhenClosed() {
+    @Test func usageWarningIsACompactActivity() {
         let model = makeModel()
-        model.showPeek(.copied("hello"), hovering: false)
+        model.showPeek(.usage(80), hovering: false)
         #expect(model.presentation == .compact)
-        #expect(model.compactWingWidth == PeekReason.copied("").wingWidth)
+        #expect(model.compactWingWidth == PeekReason.usage(80).wingWidth)
     }
 
     @Test func peeksNeverInterruptAPanelTheUserOpened() {
         let model = makeModel()
-        model.open(tab: .shelf)
-        model.showPeek(.copied("x"), hovering: false)
+        model.open()
+        model.showPeek(.usage(80), hovering: false)
         model.showPeek(.permission, hovering: false)
         #expect(model.presentation == .open)
-        #expect(model.tab == .shelf)
         #expect(!model.isPeeking)
     }
 
-    @Test func noPeekWhileHoveringOrDragging() {
+    @Test func noPeekWhileHovering() {
         let model = makeModel()
-        model.showPeek(.power, hovering: true)
-        #expect(model.presentation == .closed)
-        model.drag = .files
-        model.showPeek(.power, hovering: false)
+        model.showPeek(.usage(80), hovering: true)
         #expect(model.presentation == .closed)
     }
 
@@ -58,17 +46,16 @@ private func makeModel() -> NotchModel {
         model.showPeek(.summoned, hovering: false)
         #expect(model.presentation == .open)
         #expect(model.isPeeking)
-        #expect(model.tab == .claude)
     }
 
     @Test func finishingAnnouncesTheProjectBriefly() {
         let model = makeModel()
-        model.showPeek(.claudeDone("dolphydesk"), hovering: false)
+        model.showPeek(.claudeDone("my-app"), hovering: false)
         #expect(model.presentation == .compact)
-        #expect(model.peek == .claudeDone("dolphydesk"))
-        #expect(model.lastFinished == "dolphydesk")
+        #expect(model.peek == .claudeDone("my-app"))
+        #expect(model.lastFinished == "my-app")
         #expect(model.claudeCelebration == 1)
-        // Sized to the name, never the full-width banner.
+        // Sized to the name, never a full-width banner.
         #expect(model.compactWingWidth < 200)
     }
 
@@ -99,30 +86,29 @@ private func makeModel() -> NotchModel {
         let busy = NotchRootView.wings(model)
         #expect(busy.left == NotchRootView.closedTopRadius)
         #expect(busy.right > busy.left)
-        model.showPeek(.copied("x"), hovering: false)
+        model.showPeek(.claudeDone("x"), hovering: false)
         #expect(NotchRootView.wings(model).left == NotchRootView.closedTopRadius)
     }
 
-    @Test func compactActivityDoesNotReplaceAClaudePeek() {
+    @Test func compactActivityDoesNotReplaceAnOpenPeek() {
         let model = makeModel()
         model.showPeek(.permission, hovering: false)
-        model.showPeek(.copied("x"), hovering: false)
+        model.showPeek(.usage(95), hovering: false)
         #expect(model.presentation == .open)
         #expect(model.peek == .permission)
     }
 
-    @Test func claudePeekReplacesACompactActivity() {
+    @Test func openPeekReplacesACompactActivity() {
         let model = makeModel()
-        model.showPeek(.power, hovering: false)
+        model.showPeek(.usage(80), hovering: false)
         model.showPeek(.permission, hovering: false)
         #expect(model.presentation == .open)
-        #expect(model.tab == .claude)
     }
 
     @Test func peekEndsByItself() async throws {
         let model = makeModel()
-        model.showPeek(.copied("x"), hovering: false)
-        try await Task.sleep(for: .milliseconds(1900))
+        model.showPeek(.claudeDone("x"), hovering: false)
+        try await Task.sleep(for: .milliseconds(3300))
         #expect(model.presentation == .closed)
         #expect(!model.isPeeking)
     }
@@ -133,135 +119,6 @@ private func makeModel() -> NotchModel {
         model.adoptPeekAsHover()
         try await Task.sleep(for: .milliseconds(4300))
         #expect(model.presentation == .open)
-    }
-
-    @Test func dragKeepsThePanelOpen() {
-        let model = makeModel()
-        model.open()
-        model.drag = .files
-        model.close()
-        #expect(model.isOpen)
-        model.drag = nil
-        model.close()
-        #expect(!model.isOpen)
-    }
-
-    @Test func defaultTabFollowsClaudeActivity() {
-        let model = makeModel()
-        model.select(.clipboard)
-        model.close()
-        model.open()
-        #expect(model.tab == .clipboard)
-
-        model.close()
-        model.claude.handle(hook("UserPromptSubmit"))
-        model.open()
-        #expect(model.tab == .claude)
-    }
-
-    @Test func requestedTabWins() {
-        let model = makeModel()
-        model.claude.handle(hook("UserPromptSubmit"))
-        model.open(tab: .shelf)
-        #expect(model.tab == .shelf)
-    }
-}
-
-@MainActor @Suite struct BatteryMonitorTests {
-    @Test func stateAtLaunchIsNotNews() {
-        let battery = BatteryMonitor()
-        #expect(battery.update(percent: 10, plugged: false, charging: false).isEmpty)
-        let full = BatteryMonitor()
-        #expect(full.update(percent: 100, plugged: true, charging: false).isEmpty)
-    }
-
-    @Test func plugAndUnplug() {
-        let battery = BatteryMonitor()
-        battery.update(percent: 60, plugged: false, charging: false)
-        #expect(battery.update(percent: 60, plugged: true, charging: true) == [.pluggedChanged])
-        #expect(battery.update(percent: 60, plugged: false, charging: false) == [.pluggedChanged])
-    }
-
-    @Test func lowBatteryWarnsOncePerDischarge() {
-        let battery = BatteryMonitor()
-        battery.update(percent: 30, plugged: false, charging: false)
-        #expect(battery.update(percent: 20, plugged: false, charging: false) == [.low])
-        #expect(battery.update(percent: 15, plugged: false, charging: false).isEmpty)
-        battery.update(percent: 15, plugged: true, charging: true)
-        #expect(battery.update(percent: 15, plugged: false, charging: false) == [.pluggedChanged, .low])
-    }
-
-    @Test func fullChargeAnnouncedOnce() {
-        let battery = BatteryMonitor()
-        battery.update(percent: 98, plugged: true, charging: true)
-        #expect(battery.update(percent: 100, plugged: true, charging: false) == [.charged])
-        #expect(battery.update(percent: 100, plugged: true, charging: false).isEmpty)
-    }
-}
-
-@MainActor @Suite struct ClipboardBehaviorTests {
-    private func history() -> (ClipboardHistory, NSPasteboard) {
-        let pasteboard = NSPasteboard(name: .init("notchhub-test-\(UUID())"))
-        return (ClipboardHistory(pasteboard: pasteboard), pasteboard)
-    }
-
-    @Test func pollAnnouncesNewCopies() {
-        let (history, pasteboard) = history()
-        var announced: [String] = []
-        history.onNewItem = { announced.append($0.text) }
-        pasteboard.clearContents()
-        pasteboard.setString("from another app", forType: .string)
-        history.poll()
-        history.poll()
-        #expect(announced == ["from another app"])
-    }
-
-    @Test func ownWritesAreNotAnnounced() {
-        let (history, pasteboard) = history()
-        var announced = 0
-        history.onNewItem = { _ in announced += 1 }
-        history.add("dropped text")
-        history.poll()
-        #expect(announced == 0)
-        #expect(pasteboard.string(forType: .string) == "dropped text")
-        #expect(history.items.first?.text == "dropped text")
-
-        history.copy(history.items[0])
-        history.poll()
-        #expect(announced == 0)
-    }
-
-    @Test func finderFileCopiesAreIgnored() {
-        let (history, pasteboard) = history()
-        pasteboard.clearContents()
-        pasteboard.writeObjects([URL(fileURLWithPath: "/etc/hosts") as NSURL])
-        history.poll()
-        #expect(history.items.isEmpty)
-    }
-
-    @Test func pinnedItemsStayOnTopAndSurviveClear() {
-        let (history, _) = history()
-        history.record("a")
-        history.record("b")
-        history.togglePin(history.items.first { $0.text == "a" }!)
-        #expect(history.items.map(\.text) == ["a", "b"])
-
-        for i in 0..<30 { history.record("n\(i)") }
-        #expect(history.items.first?.text == "a")
-        #expect(history.items.filter { !$0.isPinned }.count == ClipboardHistory.limit)
-
-        history.clear()
-        #expect(history.items.map(\.text) == ["a"])
-    }
-
-    @Test func recopyingAPinnedItemKeepsItPinned() {
-        let (history, _) = history()
-        history.record("keep")
-        history.togglePin(history.items[0])
-        history.record("other")
-        history.record("keep")
-        #expect(history.items.filter { $0.text == "keep" }.count == 1)
-        #expect(history.items.first { $0.text == "keep" }?.isPinned == true)
     }
 }
 

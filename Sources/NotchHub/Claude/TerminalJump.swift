@@ -6,6 +6,8 @@ struct TerminalLocation: Equatable, Sendable {
     var appPID: pid_t
     var bundleID: String?
     var tty: String?
+    /// The session's working directory, used to pick the right window of an editor.
+    var cwd: String?
 }
 
 enum ProcessTree {
@@ -74,11 +76,11 @@ enum ProcessTree {
 @MainActor
 enum TerminalJump {
     /// Finds the nearest ancestor that is a regular app (Terminal, iTerm, Ghostty, VS Code, ...).
-    static func locate(ancestors: [ProcessTree.Entry]) -> TerminalLocation? {
+    static func locate(ancestors: [ProcessTree.Entry], cwd: String? = nil) -> TerminalLocation? {
         let tty = ancestors.first { $0.tty != nil }?.tty
         for entry in ancestors {
             if let app = NSRunningApplication(processIdentifier: entry.pid), app.activationPolicy == .regular {
-                return TerminalLocation(appPID: entry.pid, bundleID: app.bundleIdentifier, tty: tty)
+                return TerminalLocation(appPID: entry.pid, bundleID: app.bundleIdentifier, tty: tty, cwd: cwd.flatMap { $0.isEmpty ? nil : $0 })
             }
         }
         return nil
@@ -91,6 +93,12 @@ enum TerminalJump {
         if let app = NSRunningApplication(processIdentifier: location.appPID), let url = app.bundleURL {
             let configuration = NSWorkspace.OpenConfiguration()
             configuration.activates = true
+            // VS Code and its forks (Cursor, Windsurf, ...) run every window's terminals in one
+            // process. Opening the folder a window already shows brings that window forward.
+            if let cwd = location.cwd, let folder = editorWindowFolder(appURL: url, cwd: cwd) {
+                NSWorkspace.shared.open([folder], withApplicationAt: url, configuration: configuration)
+                return
+            }
             NSWorkspace.shared.openApplication(at: url, configuration: configuration)
         }
         guard let tty = location.tty, let script = tabScript(bundleID: location.bundleID, tty: tty) else { return }
@@ -99,6 +107,32 @@ enum TerminalJump {
             var error: NSDictionary?
             NSAppleScript(source: script)?.executeAndReturnError(&error)
         }
+    }
+
+    /// For a VS Code-family editor, the open window folder that contains `cwd` (the deepest one).
+    static func editorWindowFolder(appURL: URL, cwd: String) -> URL? {
+        let product = appURL.appendingPathComponent("Contents/Resources/app/product.json")
+        guard let data = try? Data(contentsOf: product),
+              let name = (try? JSONSerialization.jsonObject(with: data) as? [String: Any])?["nameShort"] as? String
+        else { return nil }
+        let storage = FileManager.default.homeDirectoryForCurrentUser
+            .appendingPathComponent("Library/Application Support/\(name)/User/globalStorage/storage.json")
+        guard let data = try? Data(contentsOf: storage),
+              let state = (try? JSONSerialization.jsonObject(with: data) as? [String: Any])?["windowsState"] as? [String: Any]
+        else { return nil }
+        let windows = (state["openedWindows"] as? [[String: Any]] ?? []) + [state["lastActiveWindow"] as? [String: Any] ?? [:]]
+        return deepestFolder(containing: cwd, among: windows.compactMap { $0["folder"] as? String })
+    }
+
+    /// The folder URI among `folders` that contains `path` with the longest match.
+    nonisolated static func deepestFolder(containing path: String, among folders: [String]) -> URL? {
+        let path = URL(fileURLWithPath: path).standardizedFileURL.path
+        return folders
+            .compactMap { URL(string: $0) }
+            .filter { $0.isFileURL }
+            .map(\.standardizedFileURL)
+            .filter { path == $0.path || path.hasPrefix($0.path + "/") }
+            .max { $0.path.count < $1.path.count }
     }
 
     nonisolated static func tabScript(bundleID: String?, tty: String) -> String? {

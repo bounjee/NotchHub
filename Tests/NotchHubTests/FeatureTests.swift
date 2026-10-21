@@ -53,9 +53,9 @@ private func statusLine(five: Double?, resets: Date, week: Double? = nil) -> Hoo
 
     @Test func resetTextIsHumanReadable() {
         let now = Date()
-        #expect(UsageWindow(usedPercentage: 1, resetsAt: now.addingTimeInterval(2 * 3600 + 14 * 60 + 5)).resetText(from: now) == "2 sa 14 dk")
-        #expect(UsageWindow(usedPercentage: 1, resetsAt: now.addingTimeInterval(3 * 86_400 + 3600)).resetText(from: now) == "3 gün 1 sa")
-        #expect(UsageWindow(usedPercentage: 1, resetsAt: now.addingTimeInterval(20)).resetText(from: now) == "1 dk")
+        #expect(UsageWindow(usedPercentage: 1, resetsAt: now.addingTimeInterval(2 * 3600 + 14 * 60 + 5)).resetText(from: now) == "2h 14m")
+        #expect(UsageWindow(usedPercentage: 1, resetsAt: now.addingTimeInterval(3 * 86_400 + 3600)).resetText(from: now) == "3d 1h")
+        #expect(UsageWindow(usedPercentage: 1, resetsAt: now.addingTimeInterval(20)).resetText(from: now) == "1m")
     }
 }
 
@@ -82,6 +82,15 @@ private func statusLine(five: Double?, resets: Date, week: Double? = nil) -> Hoo
         #expect(TerminalJump.tabScript(bundleID: "com.apple.Terminal", tty: #"x" & do shell script "y"#)?.contains(#"""#) == true)
     }
 
+    @Test func editorWindowIsTheDeepestOpenFolder() {
+        let folders = ["file:///Users/me/code", "file:///Users/me/code/web-app", "file:///Users/me/code/api", "vscode-remote://x/y"]
+        #expect(TerminalJump.deepestFolder(containing: "/Users/me/code/web-app/src", among: folders)?.path == "/Users/me/code/web-app")
+        #expect(TerminalJump.deepestFolder(containing: "/Users/me/code/api", among: folders)?.path == "/Users/me/code/api")
+        #expect(TerminalJump.deepestFolder(containing: "/Users/me/code/apix", among: folders)?.path == "/Users/me/code")
+        #expect(TerminalJump.deepestFolder(containing: "/Users/me/other", among: folders) == nil)
+        #expect(TerminalJump.deepestFolder(containing: "/Users/me/my app", among: ["file:///Users/me/my%20app"])?.path == "/Users/me/my app")
+    }
+
     @Test func sessionRemembersItsTerminal() {
         let store = ClaudeStore()
         // The test runner's own ancestry has no regular app in CI-like runs, so feed a known one.
@@ -95,89 +104,6 @@ private func statusLine(five: Double?, resets: Date, week: Double? = nil) -> Hoo
         }
     }
 }
-
-@MainActor @Suite struct ClipboardKindTests {
-    @Test func detectsColors() {
-        #expect(ClipboardKind.detect("#ff8800") == .color(red: 1, green: 136.0 / 255, blue: 0, alpha: 1))
-        #expect(ClipboardKind.detect("#FFF") == .color(red: 1, green: 1, blue: 1, alpha: 1))
-        #expect(ClipboardKind.detect("#12345") == .text)
-        #expect(ClipboardKind.detect("#hello") == .text)
-    }
-
-    @Test func detectsLinks() {
-        #expect(ClipboardKind.detect("https://notchy.dev/pricing") == .link(URL(string: "https://notchy.dev/pricing")!))
-        #expect(ClipboardKind.detect("see https://notchy.dev") == .text)
-        #expect(ClipboardKind.detect("ftp://x.y") == .text)
-    }
-
-    @Test func detectsJSONAndCode() {
-        #expect(ClipboardKind.detect(#"{"a": [1, 2]}"#) == .json)
-        #expect(ClipboardKind.detect("{not json") == .text)
-        #expect(ClipboardKind.detect("func a() {\n    return 1\n}") == .code)
-        #expect(ClipboardKind.detect("Merhaba\ndünya") == .text)
-    }
-
-    @Test func formatsJSON() {
-        let history = ClipboardHistory(pasteboard: NSPasteboard(name: .init("notchhub-test-\(UUID())")))
-        history.record(#"{"b":1,"a":2}"#)
-        history.copyFormattedJSON(history.items[0])
-        #expect(history.items.first?.text == "{\n  \"a\" : 2,\n  \"b\" : 1\n}")
-    }
-}
-
-@MainActor @Suite struct FileArrivalTests {
-    @Test func unfinishedDownloadsAreNotArrivals() {
-        #expect(!FileArrivals.isFinished("movie.mp4.crdownload", siblings: []))
-        #expect(!FileArrivals.isFinished("Report.pdf.download", siblings: []))
-        #expect(!FileArrivals.isFinished(".DS_Store", siblings: []))
-        #expect(!FileArrivals.isFinished("big.zip", siblings: ["big.zip", "big.zip.part"]))
-        #expect(FileArrivals.isFinished("big.zip", siblings: ["big.zip"]))
-    }
-
-    @Test func noticesANewDownload() async throws {
-        let folder = FileManager.default.temporaryDirectory.appendingPathComponent("dl-\(UUID())")
-        try FileManager.default.createDirectory(at: folder, withIntermediateDirectories: true)
-        try Data("old".utf8).write(to: folder.appendingPathComponent("old.txt"))
-        let arrivals = FileArrivals(downloadsURL: folder)
-        var arrived: [String] = []
-        arrivals.onArrival = { url, kind in if kind == .download { arrived.append(url.lastPathComponent) } }
-        arrivals.start(screenshots: false)
-
-        // In progress, then renamed when complete, as browsers do.
-        try Data("data".utf8).write(to: folder.appendingPathComponent("new.zip.crdownload"))
-        try await Task.sleep(for: .milliseconds(300))
-        try FileManager.default.moveItem(at: folder.appendingPathComponent("new.zip.crdownload"), to: folder.appendingPathComponent("new.zip"))
-        for _ in 0..<40 where arrived.isEmpty { try await Task.sleep(for: .milliseconds(100)) }
-        #expect(arrived == ["new.zip"])
-    }
-}
-
-@MainActor @Suite struct ShelfExpiryTests {
-    @Test func automaticItemsExpireManualOnesStay() throws {
-        let dir = FileManager.default.temporaryDirectory.appendingPathComponent("shelf-\(UUID())")
-        try FileManager.default.createDirectory(at: dir, withIntermediateDirectories: true)
-        let manual = dir.appendingPathComponent("manual.txt"), shot = dir.appendingPathComponent("shot.png")
-        try Data("a".utf8).write(to: manual)
-        try Data("b".utf8).write(to: shot)
-        let shelf = Shelf(storeURL: dir.appendingPathComponent("shelf.json"))
-        let long = Date().addingTimeInterval(-2 * 86_400)
-        shelf.add([manual], now: long)
-        shelf.add([shot], source: .screenshot, now: long)
-        shelf.removeExpired()
-        #expect(shelf.items.map(\.url.lastPathComponent) == ["manual.txt"])
-    }
-
-    @Test func oldShelfFilesStillLoad() throws {
-        let dir = FileManager.default.temporaryDirectory.appendingPathComponent("shelf-\(UUID())")
-        try FileManager.default.createDirectory(at: dir, withIntermediateDirectories: true)
-        let file = dir.appendingPathComponent("a.txt")
-        try Data("a".utf8).write(to: file)
-        let store = dir.appendingPathComponent("shelf.json")
-        try Data(#"[{"path":"\#(file.path)"}]"#.utf8).write(to: store)
-        #expect(Shelf(storeURL: store).items.count == 1)
-    }
-}
-
 
 @MainActor @Suite struct MultiSessionTests {
     private func event(_ name: String, _ session: String, cwd: String = "/Users/me/code/app", extra: [String: Any] = [:]) -> HookEvent {
@@ -238,7 +164,8 @@ private func statusLine(five: Double?, resets: Date, week: Double? = nil) -> Hoo
         store.handle(event("PreToolUse", "new", extra: ["tool_name": "Bash", "tool_input": ["command": "ls"], "tool_use_id": "n"]), now: start)
         store.handle(event("Stop", "new", extra: ["background_tasks": []]), now: start.addingTimeInterval(20))
         store.handle(event("UserPromptSubmit", "busy"), now: start.addingTimeInterval(5))
-        store.handle(event("Notification", "asks", extra: ["notification_type": "idle_prompt"]), now: start.addingTimeInterval(1))
+        store.handle(event("UserPromptSubmit", "asks"), now: start)
+        store.handle(event("Notification", "asks", extra: ["notification_type": "elicitation_dialog"]), now: start.addingTimeInterval(1))
         #expect(store.sortedSessions.map(\.id) == ["asks", "busy", "new", "old"])
     }
 
@@ -246,10 +173,10 @@ private func statusLine(five: Double?, resets: Date, week: Double? = nil) -> Hoo
         let store = ClaudeStore()
         var peeks: [PeekReason] = []
         store.onPeek = { peeks.append($0) }
-        store.handle(event("SessionStart", "a", extra: ["notchhub_project": "dolphydesk"]))
+        store.handle(event("SessionStart", "a", extra: ["notchhub_project": "my-app"]))
         work(store, "a")
         store.handle(event("Stop", "a", extra: ["background_tasks": []]))
-        #expect(peeks == [.claudeDone("dolphydesk")])
+        #expect(peeks == [.claudeDone("my-app")])
     }
 }
 

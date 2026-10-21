@@ -1,61 +1,108 @@
-# NotchHub
+<p align="center"><img src="docs/icon.png" width="128" alt="NotchHub icon"></p>
 
-MacBook çentiğini Dynamic Island benzeri bir panele çeviren kişisel macOS uygulaması (macOS 15+, Swift 6).
+<h1 align="center">NotchHub</h1>
 
-- **Claude (çoklu oturum):** Her oturum proje adıyla (git deposu; worktree'de ana depo, scratch klasörlerinde oturum başlığı). Kapalı çentikte tek toplu durum: izin bekleyen > çalışan (yükleniyor + sayı) > seni bekleyen > görülmemiş hata/bitti. Biri bitince kısa "✓ dolphydesk bitti"; aynı anda bitenler sırayla. Panelde tek satırlık kartlar, aciliyete göre sıralı, en yeni bitenler üstte; satıra tıklayınca terminaline gider (Terminal ve iTerm'de doğru sekme), üzerine gelince kopyala/terminal/kapat simgeleri, tam cevap ipucunda. İzin isteklerini çentikten onaylama (İzin ver / Her zaman / Reddet), 5 saatlik ve haftalık plan kullanımı (statusLine üzerinden). `claude -p` oturumları ve araç kullanmadan saniyeler içinde biten yardımcı oturumlar gösterilmez.
-- **Sürükle-bırak:** Dosya çentiğe yaklaşınca panel iki bölgeyle açılır: *Rafa ekle* ve *AirDrop*. Metin ya da bağlantı sürüklenirse *Panoya kaydet*.
-- **Masaüstü maskotu:** Claude Code'un piksel maskotu masaüstünde durur; fareyle istediğin yere taşınır (konumu hatırlanır), dokunulmayınca gözleri kapalı uyur (z z z), her tıklamada sırayla bir bilgi verir (Claude durumu → limit → son biten ya da pil), çift tıklayınca çentik paneli açılır, sağ tıkta menü (bilgiler, panel, uyut/uyandır, konumu sıfırla, gizle). İzin gerekince uyanıp el sallar, iş bitince zıplar. Menüden açılıp kapatılır.
-- **Otomatik raf:** Yeni ekran görüntüleri ve bitmiş indirmeler rafa düşer, 1 gün sonra kendiliğinden kalkar.
-- **Raf:** Sadece yollar saklanır. Resim/PDF/video için QuickLook önizlemesi, çift tıkla aç, dışarı sürükle, AirDrop, Finder'da göster.
-- **Pano:** Son 20 metin + sabitlenenler, sadece bellekte. Renk kodu, bağlantı, JSON ve kod için akıllı önizleme. Başka uygulamada kopyalayınca çentikte "Kopyalandı" görünür. Şifre yöneticisi öğeleri ve Finder dosya kopyaları kaydedilmez.
-- **Pil:** Şarja takınca/çıkarınca, %20'nin altına inince ve dolunca çentikte kısa gösterim.
+<p align="center">A small, focused Claude Code companion for the MacBook notch, with a pixel mascot.</p>
 
-## Derleme ve kurulum
+<p align="center"><img src="docs/open-panel.png" width="560" alt="The open notch panel"></p>
+
+NotchHub keeps an eye on your Claude Code sessions from the notch. It shows what each session is doing, tells you when one finishes, and lets you approve permission requests without switching to the terminal. A pixel mascot can sit on your desktop and nap until something happens. That's all it does.
+
+## Features
+
+- **Status in the notch.** A spinner while Claude works (with a count when several sessions run), an orange pulse when a permission is waiting, and a green check for finished work you haven't looked at yet. When nothing is going on, the notch stays plain.
+- **"✓ project done".** When a session finishes, its project name appears beside the notch for three seconds. If several finish together, they're announced one after another.
+- **Answer permission requests from the notch.** Choose Allow, Always (saves the rule Claude Code suggests) or Deny. The terminal prompt stays live, so whichever you answer first wins.
+- **Every session at a glance.** Hover over the notch (or click it) to see one line per session, labeled by its git repository. Sessions waiting on you come first. Click a row to jump to its terminal; Terminal and iTerm switch to the exact tab.
+- **Plan usage.** Shows your 5-hour and weekly Claude usage, with a heads-up at 80% and 95%.
+- **Desktop mascot.**
+  - Drag it anywhere; it remembers its spot.
+  - It naps when left alone.
+  - Click it for status, usage, and the latest finished session.
+  - Double-click it to open the panel.
+  - Right-click it for options, including hiding it.
+- **Stays out of the way.**
+  - Nothing is ever drawn over your app menus or menu bar icons.
+  - Sessions started with `claude -p` and short helper sessions are ignored.
+  - Idle CPU stays near 0%, because the animations run in Core Animation.
+
+| Working | Done | Permission |
+| :-: | :-: | :-: |
+| <img src="docs/closed-working.png" width="260"> | <img src="docs/closed-done.png" width="260"> | <img src="docs/closed-permission.png" width="260"> |
+
+<p align="center"><img src="docs/mascot-awake.png" width="180" alt="Mascot"> <img src="docs/mascot-asleep.png" width="180" alt="Mascot asleep"></p>
+
+## Requirements
+
+- A Mac with a notch, running macOS 15 or later
+- [Claude Code](https://docs.claude.com/en/docs/claude-code)
+- Xcode 16 or later (Swift 6), to build it
+
+## Install
 
 ```bash
-./scripts/build-app.sh
+git clone https://github.com/<you>/NotchHub.git
+```
+
+```bash
+cd NotchHub && ./scripts/build-app.sh
 ```
 
 ```bash
 ditto dist/NotchHub.app /Applications/NotchHub.app && open /Applications/NotchHub.app
 ```
 
-Hook'lar menü çubuğundaki NotchHub simgesinden kurulur/kaldırılır. Kurulum `~/.claude/settings.json` dosyasını önce `settings.json.notchhub-backup` olarak yedekler ve sadece `NotchHub.app/Contents/MacOS/notch-hook` girdilerini ekler/siler.
+Then click the notch icon in the menu bar and choose **Install Hooks**. New Claude Code sessions will show up in the notch. Sessions that were already running pick up the hooks the next time they start.
 
-Boring Notch, Notchy gibi başka çentik uygulamalarıyla aynı anda çalıştırma.
+The app is ad-hoc signed, since you build it yourself. It runs locally and makes no network requests.
 
-Uygulama simgesi `scripts/make-icon.swift` ile çizilir:
+## How it works
 
-```bash
-swift scripts/make-icon.swift /tmp/icon-1024.png
+```
+Claude Code ──(hook, JSON on stdin)──► notch-hook ──(Unix socket)──► NotchHub.app
+                                           ◄──(permission decision)──┘
 ```
 
-Ardından `sips` ile 16–1024 boyutları bir `AppIcon.iconset` klasörüne çıkarılıp `iconutil -c icns AppIcon.iconset -o Resources/AppIcon.icns` ile paketlenir.
+- **Hooks.** **Install Hooks** adds `notch-hook` entries for the session, prompt, tool, permission, notification and stop events to `~/.claude/settings.json`. Everything else in the file is left alone. Before the first change it saves a copy as `settings.json.notchhub-backup`. **Remove Hooks** removes only NotchHub's entries.
+- **Status line.** Claude Code reports plan usage only to its status line, so the installer also adds a `statusLine` command that prints nothing. It skips this if you already have a status line of your own.
+- **Fails safe.** `notch-hook` always exits 0 and prints nothing unless you answer a permission request in the notch. If the app isn't running, Claude Code carries on as usual.
+- **Project names.** Session names come from the git repository; for worktrees, the main repository's name is used.
+- **Your data stays local.** Answers and usage are kept in memory. The only things written to disk are the last plan usage numbers and the mascot's position.
 
-## Testler
+## Uninstall
+
+Choose **Remove Hooks** in the menu, quit NotchHub, then delete `/Applications/NotchHub.app`.
+
+## Development
 
 ```bash
 swift test
 ```
 
-`HookInstaller` (geçici HOME), durum makinesi, pano filtresi, raf kalıcılığı ve gerçek `notch-hook` ikilisinin socket üzerinden uçtan uca davranışı test edilir.
-
-Tasarım incelemesi için her durumu örnek verilerle PNG'ye çizer:
+The tests cover the hook installer (with a temporary home folder), the session state machine, the socket server under load, and the real `notch-hook` binary end to end.
 
 ```bash
-.build/debug/NotchHub --snapshot /tmp/notchhub-snap
+swift build && .build/debug/NotchHub --snapshot /tmp/notchhub
 ```
 
-`--regular` bayrağı Dock simgesiyle açar; sadece UI otomasyon araçlarının uygulamayı bulabilmesi için.
+This renders every notch state and the mascot to PNG files, using sample sessions. The screenshots above were made this way.
 
-## Notlar
+The app icon is drawn by `scripts/make-icon.swift`. The UI is in English, plus Turkish in `Resources/tr.lproj`; more translations are welcome.
 
-- Tekrarlayan göstergeler (dönen nokta, yanıp sönen izin noktası) Core Animation katmanında çalışır; çentik "çalışıyor" gösterirken uygulama ~%0 CPU kullanır.
-- macOS Unix socket'leri bekleme kuyruğu dolunca bağlantıyı reddeder; `notch-hook` bu yüzden ~100 ms kısa süre yeniden dener (paralel araç çağrılarında olay kaybolmasın).
-- İkinci bir örnek açılırsa (girişte başlat + elle açma) kendini kapatır.
+## Türkçe
 
-- macOS menü çubuğu bandını her pencerenin üstüne çizer ve oradaki tıklamaları kendisi alır. Bu yüzden açık panel bantta sadece çentik genişliğinde bir "boyun" olarak durur, altında genişler; kapalı/compact içerik de sadece çentiğin sağında. Menüler hiç örtülmez.
-- Hover ile açılma 0,7 sn bekler (menü çubuğuna giderken yanlışlıkla açılmasın), beklerken çentik hafifçe büyür. Çentiğe tıklayınca beklemeden açılır.
-- Kullanım limiti için hook kurulumu `statusLine`'ı da ekler (sadece kullanıcının kendi statusLine'ı yoksa); terminale hiçbir şey yazmaz.
-- `claude -p` Stop'tan hemen sonra SessionEnd gönderir; `done` oturumlar bu yüzden SessionEnd ile silinmez, 10 dk sonra düşer. 30 dk olay gelmeyen oturumlar (kapatılmış terminal) da düşer.
-- Ad-hoc imzalı olduğu için her yeniden derlemede macOS gizlilik izinleri (pano) yeniden sorulabilir.
+NotchHub, MacBook çentiğinde Claude Code oturumlarını izleyen küçük bir yardımcı:
+
+- **Çentik durumu:** çalışırken yükleniyor göstergesi, izin beklerken turuncu nokta, bitince "✓ proje bitti".
+- **İzin onayı:** izin isteklerine çentikten İzin ver / Her zaman / Reddet ile cevap verebilirsin.
+- **Oturum listesi:** her oturum git deposunun adıyla görünür; satıra tıklayınca terminaline gidilir.
+- **Plan kullanımı:** 5 saatlik ve haftalık limit gösterilir.
+- **Masaüstü maskotu:** istediğin yere sürüklenir, dokunulmayınca uyur, tıklayınca bilgi verir, sağ tıkta menü açar.
+
+Kurulum için yukarıdaki komutları çalıştır, sonra menü çubuğundaki simgeden **Hook'ları kur**'u seç. Sistem dili Türkçe ise arayüz Türkçe açılır.
+
+## License
+
+MIT. See [LICENSE](LICENSE).
+
+NotchHub is an independent project. It is not affiliated with or endorsed by Anthropic. "Claude" and "Claude Code" are trademarks of Anthropic. The mascot is drawn after the logo Claude Code prints in the terminal.

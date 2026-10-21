@@ -18,11 +18,7 @@ enum NotchHubApp {
 @MainActor
 final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
     private let claude = ClaudeStore(limitsURL: ClaudeStore.defaultLimitsURL)
-    private let shelf = Shelf()
-    private let clipboard = ClipboardHistory()
-    private let battery = BatteryMonitor()
-    private let arrivals = FileArrivals()
-    private lazy var model = NotchModel(claude: claude, shelf: shelf, clipboard: clipboard, battery: battery)
+    private lazy var model = NotchModel(claude: claude)
     private lazy var windowController = NotchWindowController(model: model)
     private lazy var pet = DesktopPet(model: model) { [weak self] in
         guard let self else { return }
@@ -44,27 +40,11 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
             NSApp.terminate(nil)
             return
         }
-        battery.start()
-        clipboard.start()
         windowController.start()
         setUpStatusItem()
 
         claude.onPeek = { [weak self] reason in self?.peek(reason) }
-        battery.onEvent = { [weak self] event in
-            switch event {
-            case .pluggedChanged: self?.peek(.power)
-            case .charged: self?.peek(.charged)
-            case .low: self?.peek(.lowBattery)
-            }
-        }
-        clipboard.onNewItem = { [weak self] item in self?.peek(.copied(item.text)) }
         claude.hooksInstalled = HookInstaller.isInstalled()
-        arrivals.onArrival = { [weak self] url, kind in
-            guard let self else { return }
-            withAnimation(.snappy) { self.shelf.add([url], source: kind) }
-            self.peek(kind == .screenshot ? .screenshot(url.path) : .downloaded(url.lastPathComponent))
-        }
-        arrivals.start()
         if DesktopPet.isEnabled { pet.start() }
 
         let claude = claude
@@ -84,11 +64,9 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
         }
 
         maintenanceTimer = Timer.scheduledTimer(withTimeInterval: 30, repeats: true) { [weak self] _ in
-            MainActor.assumeIsolated {
-                self?.claude.removeExpiredSessions()
-                self?.shelf.removeExpired()
-            }
+            MainActor.assumeIsolated { self?.claude.removeExpiredSessions() }
         }
+        maintenanceTimer?.tolerance = 5
     }
 
     func applicationWillTerminate(_ notification: Notification) {
@@ -136,23 +114,26 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
         menu.removeAllItems()
 
         let installed = HookInstaller.isInstalled()
-        let status = NSMenuItem(title: installed ? "Claude Code hook'ları kurulu" : "Claude Code hook'ları kurulu değil", action: nil, keyEquivalent: "")
+        let status = NSMenuItem(
+            title: installed ? String(localized: "Claude Code hooks installed") : String(localized: "Claude Code hooks not installed"),
+            action: nil, keyEquivalent: ""
+        )
         status.isEnabled = false
         menu.addItem(status)
-        menu.addItem(withTitle: installed ? "Hook'ları kaldır" : "Hook'ları kur", action: #selector(toggleHooks), keyEquivalent: "")
-            .target = self
+        menu.addItem(withTitle: installed ? String(localized: "Remove Hooks") : String(localized: "Install Hooks"),
+                     action: #selector(toggleHooks), keyEquivalent: "").target = self
         menu.addItem(.separator())
 
-        let petItem = menu.addItem(withTitle: "Masaüstü maskotu", action: #selector(togglePet), keyEquivalent: "")
+        let petItem = menu.addItem(withTitle: String(localized: "Desktop Mascot"), action: #selector(togglePet), keyEquivalent: "")
         petItem.target = self
         petItem.state = pet.isRunning ? .on : .off
 
-        let login = menu.addItem(withTitle: "Girişte başlat", action: #selector(toggleLoginItem), keyEquivalent: "")
+        let login = menu.addItem(withTitle: String(localized: "Open at Login"), action: #selector(toggleLoginItem), keyEquivalent: "")
         login.target = self
         login.state = SMAppService.mainApp.status == .enabled ? .on : .off
         menu.addItem(.separator())
 
-        menu.addItem(withTitle: "NotchHub'dan çık", action: #selector(NSApplication.terminate(_:)), keyEquivalent: "q")
+        menu.addItem(withTitle: String(localized: "Quit NotchHub"), action: #selector(NSApplication.terminate(_:)), keyEquivalent: "q")
     }
 
     @objc private func toggleHooks() {
@@ -164,16 +145,9 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
                 try HookInstaller.install(hookPath: hookPath)
             }
         } catch {
-            showError("Hook ayarı değiştirilemedi", error)
+            showError(String(localized: "Could not change the hooks"), error)
         }
         claude.hooksInstalled = HookInstaller.isInstalled()
-        arrivals.onArrival = { [weak self] url, kind in
-            guard let self else { return }
-            withAnimation(.snappy) { self.shelf.add([url], source: kind) }
-            self.peek(kind == .screenshot ? .screenshot(url.path) : .downloaded(url.lastPathComponent))
-        }
-        arrivals.start()
-        if DesktopPet.isEnabled { pet.start() }
     }
 
     /// The bundled hook binary, so a build run from outside /Applications still installs a working path.
@@ -201,7 +175,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
                 try SMAppService.mainApp.register()
             }
         } catch {
-            showError("Girişte başlatma ayarlanamadı", error)
+            showError(String(localized: "Could not change Open at Login"), error)
         }
     }
 

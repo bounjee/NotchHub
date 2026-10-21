@@ -1,120 +1,81 @@
 import AppKit
 import SwiftUI
 
-/// `NotchHub --snapshot <dir>` renders each notch state with sample data to PNG files, for design review.
+/// `NotchHub --snapshot <dir>` renders the notch and the mascot with sample sessions to PNG
+/// files: for design review and for the README. Nothing on the real screen is captured.
 @MainActor
 enum Snapshot {
     static func run(into directory: URL) {
         try? FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
         let claude = ClaudeStore()
-        let shelf = Shelf(storeURL: directory.appendingPathComponent("shelf.json"))
-        let clipboard = ClipboardHistory(pasteboard: NSPasteboard(name: .init("notchhub-snapshot")))
-        let battery = BatteryMonitor()
-        battery.start()
-        let model = NotchModel(claude: claude, shelf: shelf, clipboard: clipboard, battery: battery)
+        let model = NotchModel(claude: claude)
         model.notchSize = NotchGeometry.builtInScreen().map(NotchGeometry.notchSize(of:)) ?? CGSize(width: 185, height: 32)
 
-        let host = NSHostingView(rootView: NotchRootView(model: model).background(Color(white: 0.55)))
-        let window = NSWindow(contentRect: NSRect(x: -3000, y: -3000, width: 760, height: 400), styleMask: .borderless, backing: .buffered, defer: false)
+        let backdrop = LinearGradient(
+            colors: [Color(red: 0.16, green: 0.18, blue: 0.27), Color(red: 0.31, green: 0.24, blue: 0.33)],
+            startPoint: .topLeading, endPoint: .bottomTrailing
+        )
+        let host = NSHostingView(rootView: NotchRootView(model: model).background(backdrop))
+        let window = NSWindow(contentRect: NSRect(x: -3000, y: -3000, width: 720, height: 420), styleMask: .borderless, backing: .buffered, defer: false)
         window.contentView = host
         window.orderFrontRegardless()
 
-        func capture(_ name: String) {
+        func capture(_ name: String, height: CGFloat? = nil) {
             host.layoutSubtreeIfNeeded()
             RunLoop.main.run(until: Date().addingTimeInterval(0.9))
-            guard let rep = host.bitmapImageRepForCachingDisplay(in: host.bounds) else { return }
-            host.cacheDisplay(in: host.bounds, to: rep)
+            var bounds = host.bounds
+            // The view is flipped: keep the top strip when cropping.
+            if let height { bounds = CGRect(x: 0, y: 0, width: bounds.width, height: height) }
+            guard let rep = host.bitmapImageRepForCachingDisplay(in: bounds) else { return }
+            host.cacheDisplay(in: bounds, to: rep)
             try? rep.representation(using: .png, properties: [:])?.write(to: directory.appendingPathComponent("\(name).png"))
         }
 
-        capture("1-closed-idle")
-
-        let responder = SnapshotResponder()
         func send(_ object: [String: Any], responder: PermissionReplying? = nil) {
             claude.handle(HookEvent(json: try! JSONSerialization.data(withJSONObject: object))!, responder: responder)
         }
-        send(["hook_event_name": "UserPromptSubmit", "session_id": "a", "cwd": "/Users/me/code/dolphydesk"])
-        send(["hook_event_name": "PreToolUse", "session_id": "a", "cwd": "/Users/me/code/dolphydesk", "tool_name": "Bash",
-              "tool_input": ["command": "npm test -- --watch=false"], "tool_use_id": "t1"])
-        capture("2-closed-working")
+        func work(_ id: String, _ project: String, tool: String, input: [String: Any]) {
+            send(["hook_event_name": "UserPromptSubmit", "session_id": id, "cwd": "/Users/me/code/\(project)", "notchhub_project": project])
+            send(["hook_event_name": "PreToolUse", "session_id": id, "cwd": "/Users/me/code/\(project)", "tool_name": tool,
+                  "tool_input": input, "tool_use_id": "t-\(id)"])
+        }
 
-        send(["hook_event_name": "Stop", "session_id": "b", "cwd": "/Users/me/code/NotchHub", "background_tasks": [],
-              "last_assistant_message": "Tamamlandı. **30 test** geçti.\n\n- `HookInstaller` mevcut hook'ları koruyor\n- `notch-hook` her durumda `exit 0` yapıyor\n\nSıradaki adım: gerçek Claude Code ile uçtan uca test."])
-        send(["hook_event_name": "PermissionRequest", "session_id": "a", "cwd": "/Users/me/code/dolphydesk", "tool_name": "Bash",
+        capture("closed-idle", height: 90)
+
+        work("a", "web-app", tool: "Bash", input: ["command": "npm test -- --watch=false"])
+        work("b", "api", tool: "Edit", input: ["file_path": "/Users/me/code/api/src/routes/users.ts"])
+        capture("closed-working", height: 90)
+
+        model.showPeek(.claudeDone("landing-page"), hovering: false)
+        capture("closed-done", height: 90)
+        model.close()
+
+        let responder = SnapshotResponder()
+        send(["hook_event_name": "PermissionRequest", "session_id": "b", "cwd": "/Users/me/code/api", "tool_name": "Bash",
               "tool_input": ["command": "rm -rf node_modules && npm install"],
               "permission_suggestions": [["type": "addRules", "behavior": "allow", "destination": "localSettings"]]], responder: responder)
-        capture("3-closed-permission")
+        capture("closed-permission", height: 90)
 
         send(["hook_event_name": "NotchHubStatusLine", "session_id": "a", "rate_limits": [
-            "five_hour": ["used_percentage": 64, "resets_at": Date().addingTimeInterval(2 * 3600 + 840).timeIntervalSince1970],
-            "seven_day": ["used_percentage": 31, "resets_at": Date().addingTimeInterval(4 * 86_400).timeIntervalSince1970],
+            "five_hour": ["used_percentage": 42, "resets_at": Date().addingTimeInterval(2 * 3600 + 840).timeIntervalSince1970],
+            "seven_day": ["used_percentage": 23, "resets_at": Date().addingTimeInterval(4 * 86_400).timeIntervalSince1970],
         ]])
-        model.open(tab: .claude)
-        capture("4-open-claude")
+        send(["hook_event_name": "UserPromptSubmit", "session_id": "c", "cwd": "/Users/me/code/landing-page", "notchhub_project": "landing-page"])
+        send(["hook_event_name": "PreToolUse", "session_id": "c", "cwd": "/Users/me/code/landing-page", "tool_name": "Write",
+              "tool_input": ["file_path": "/Users/me/code/landing-page/index.html"], "tool_use_id": "t-c"])
+        send(["hook_event_name": "Stop", "session_id": "c", "cwd": "/Users/me/code/landing-page", "background_tasks": [],
+              "last_assistant_message": "The hero section is responsive now and the contact form validates its fields."])
+        model.open()
+        capture("open-panel")
 
         claude.answer(claude.pending[0].id, .allow)
-        for (id, project) in [("c", "studio"), ("d", "basitce")] {
-            send(["hook_event_name": "UserPromptSubmit", "session_id": id, "cwd": "/Users/me/code/\(project)", "notchhub_project": project])
-            send(["hook_event_name": "PreToolUse", "session_id": id, "cwd": "/Users/me/code/\(project)", "tool_name": "Bash",
-                  "tool_input": ["command": "npm run build"], "tool_use_id": "t-\(id)"])
-        }
-        send(["hook_event_name": "Stop", "session_id": "d", "cwd": "/Users/me/code/basitce", "background_tasks": [],
-              "last_assistant_message": "## Evren #0003 hazır\n\n**Milli Piyango** videosu 71 sn, render bitti."])
-        capture("5-open-claude-done")
+        capture("open-sessions")
 
-        shelf.add(["/Applications/Safari.app", "/System/Applications/Notes.app", NSHomeDirectory() + "/Desktop", "/etc/hosts"].map(URL.init(fileURLWithPath:)))
-        model.select(.shelf)
-        capture("6-open-shelf")
-        shelf.toggleSelection(shelf.items[1])
-        capture("7-open-shelf-selected")
-        shelf.clear()
-        capture("8-open-shelf-empty")
-
-        for text in ["git push origin main", "https://notchy.dev/pricing?ref=notch", "func layout() {\n    guard let screen = NotchGeometry.builtInScreen() else { return }\n}", #"{"name":"NotchHub","tabs":3}"#, "#D97757", "Merhaba dünya"] {
-            clipboard.record(text)
-        }
-        model.select(.clipboard)
-        clipboard.togglePin(clipboard.items[2])
-        capture("9-open-clipboard")
-
-        model.drag = .files
-        capture("11-drop-files")
-        model.drag = .text
-        capture("12-drop-text")
-        model.drag = nil
-
-        model.close()
-        model.showPeek(.power, hovering: false)
-        capture("10-compact-power")
-        model.showPeek(.copied("git push origin main --force-with-lease"), hovering: false)
-        capture("13-compact-copied")
-        model.showPeek(.lowBattery, hovering: false)
-        capture("14-compact-low-battery")
-        model.showPeek(.charged, hovering: false)
-        capture("15-compact-charged")
-        model.showPeek(.claudeDone("dolphydesk"), hovering: false)
-        capture("18-compact-done")
-        model.close()
-        capture("21-closed-multi")
-        model.showPeek(.usage(80), hovering: false)
-        capture("19-compact-usage")
-        model.showPeek(.downloaded("NotchHub-1.2.dmg"), hovering: false)
-        capture("20-compact-download")
-
-        model.close()
-        model.isHoverPrimed = true
-        capture("16-closed-hover-lift")
-        model.isHoverPrimed = false
-        send(["hook_event_name": "PermissionRequest", "session_id": "a", "cwd": "/Users/me/code/dolphydesk", "tool_name": "Edit",
-              "tool_input": ["file_path": "/Users/me/code/dolphydesk/src/app.ts"]], responder: responder)
-        model.close()
-        capture("17-closed-attention")
-
-        // Desktop mascot: info bubble, then asleep.
+        // The desktop mascot, awake and asleep.
         let pet = PetView(frame: NSRect(origin: .zero, size: PetView.stageSize))
         let petWindow = NSWindow(contentRect: NSRect(x: -3000, y: -2000, width: PetView.stageSize.width, height: PetView.stageSize.height),
                                  styleMask: .borderless, backing: .buffered, defer: false)
-        petWindow.backgroundColor = NSColor(white: 0.25, alpha: 1)
+        petWindow.backgroundColor = NSColor(srgbRed: 0.18, green: 0.19, blue: 0.27, alpha: 1)
         petWindow.contentView = pet
         petWindow.orderFrontRegardless()
         func capturePet(_ name: String) {
@@ -124,23 +85,10 @@ enum Snapshot {
             try? rep.representation(using: .png, properties: [:])?.write(to: directory.appendingPathComponent("\(name).png"))
         }
         pet.sprite.show(.normal)
-        pet.say(lines: PetBrain.info(store: claude, battery: battery), for: 30)
-        capturePet("30-pet-info")
-        pet.say(lines: [], for: 0.01)
+        capturePet("mascot-awake")
         pet.sprite.show(.asleep)
         pet.setSleeping(true)
-        capturePet("31-pet-asleep")
-
-        // Menu bar icon, enlarged.
-        let icon = AppDelegate.menuBarIcon
-        let big = NSImage(size: NSSize(width: 160, height: 128), flipped: false) { rect in
-            NSColor.white.setFill(); rect.fill()
-            icon.draw(in: rect)
-            return true
-        }
-        if let tiff = big.tiffRepresentation, let rep = NSBitmapImageRep(data: tiff) {
-            try? rep.representation(using: .png, properties: [:])?.write(to: directory.appendingPathComponent("32-menubar-icon.png"))
-        }
+        capturePet("mascot-asleep")
 
         NSApp.terminate(nil)
     }

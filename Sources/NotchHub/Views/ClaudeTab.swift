@@ -1,6 +1,7 @@
 import AppKit
 import SwiftUI
 
+/// The open panel: plan usage, permission requests, then one row per session.
 struct ClaudeTab: View {
     let store: ClaudeStore
 
@@ -9,12 +10,18 @@ struct ClaudeTab: View {
             VStack(spacing: 8) {
                 UsageSummary(limits: store.limits)
                 HStack(spacing: 14) {
-                    ClawdView(status: .idle, pixel: 2.2)
+                    ClawdView(pixel: 2.2)
                     VStack(alignment: .leading, spacing: 2) {
-                        Text("Aktif Claude Code oturumu yok").font(.system(size: 13, weight: .medium))
-                        Text(store.hooksInstalled ? "Bir terminalde claude çalıştır, durumu burada görünür." : "Menü çubuğundaki NotchHub menüsünden hook'ları kur.")
-                            .font(.system(size: 11))
-                            .foregroundStyle(.secondary)
+                        Text("No active Claude Code sessions").font(.system(size: 13, weight: .medium))
+                        Group {
+                            if store.hooksInstalled {
+                                Text("Run claude in a terminal and it shows up here.")
+                            } else {
+                                Text("Install the hooks from the NotchHub menu in the menu bar.")
+                            }
+                        }
+                        .font(.system(size: 11))
+                        .foregroundStyle(.secondary)
                     }
                     Spacer()
                 }
@@ -60,10 +67,10 @@ private struct PermissionCard: View {
                 Image(systemName: "hand.raised.fill")
                     .foregroundStyle(Color.claude)
                     .symbolEffect(.pulse, options: .repeating)
-                Text("İzin gerekiyor").fontWeight(.semibold)
-                Text("· \(sessionLabel)").foregroundStyle(.secondary)
+                Text("Permission needed").fontWeight(.semibold)
+                Text(verbatim: "· \(sessionLabel)").foregroundStyle(.secondary)
                 Spacer()
-                Text(request.toolName)
+                Text(verbatim: request.toolName)
                     .font(.system(size: 11, weight: .semibold, design: .monospaced))
                     .padding(.horizontal, 7).padding(.vertical, 2)
                     .background(Capsule().fill(Color.claude.opacity(0.22)))
@@ -72,7 +79,7 @@ private struct PermissionCard: View {
             .font(.system(size: 13))
 
             if !request.summary.isEmpty {
-                Text(request.summary)
+                Text(verbatim: request.summary)
                     .font(.system(size: 12, design: .monospaced))
                     .foregroundStyle(.white.opacity(0.85))
                     .lineLimit(4)
@@ -85,25 +92,25 @@ private struct PermissionCard: View {
             HStack(spacing: 8) {
                 if let jump {
                     Button(action: jump) {
-                        Label("Terminalde cevapla", systemImage: "arrow.up.forward.app")
+                        Label("Answer in terminal", systemImage: "arrow.up.forward.app")
                     }
                     .buttonStyle(.plain)
                     .font(.system(size: 11, weight: .medium))
                     .foregroundStyle(.secondary)
                 } else {
-                    Text("Terminalden de cevaplayabilirsin")
+                    Text("You can also answer in the terminal")
                         .font(.system(size: 11))
                         .foregroundStyle(.tertiary)
                 }
                 Spacer()
-                Button("Reddet") { answer(.deny) }
+                Button("Deny") { answer(.deny) }
                     .buttonStyle(PillButtonStyle(kind: .secondary))
                 if request.suggestions != nil {
-                    Button("Her zaman") { answer(.allowAlways) }
+                    Button("Always") { answer(.allowAlways) }
                         .buttonStyle(PillButtonStyle(kind: .secondary))
-                        .help("İzin ver ve Claude Code'un önerdiği kuralı kaydet")
+                        .help(String(localized: "Allow and save the rule Claude Code suggests"))
                 }
-                Button("İzin ver") { answer(.allow) }
+                Button("Allow") { answer(.allow) }
                     .buttonStyle(PillButtonStyle(kind: .primary))
             }
         }
@@ -116,7 +123,7 @@ private struct PermissionCard: View {
     }
 }
 
-/// One line per session, like the rows of a list: click it to go to its terminal.
+/// One line per session: click it to go to its terminal.
 private struct SessionRow: View {
     let session: ClaudeSession
     let jump: (() -> Void)?
@@ -134,14 +141,14 @@ private struct SessionRow: View {
                 .frame(width: 16)
             VStack(alignment: .leading, spacing: 2) {
                 HStack(spacing: 6) {
-                    Text(session.label).font(.system(size: 13, weight: .semibold)).lineLimit(1)
-                    Text(session.status.title).font(.system(size: 12)).foregroundStyle(session.status.tint).fixedSize()
+                    Text(verbatim: session.label).font(.system(size: 13, weight: .semibold)).lineLimit(1)
+                    Text(verbatim: session.status.title).font(.system(size: 12)).foregroundStyle(session.status.tint).fixedSize()
                     if session.unseen {
                         Circle().fill(session.status.tint).frame(width: 5, height: 5)
-                            .help("Henüz bakmadın")
+                            .help(String(localized: "Not looked at yet"))
                     }
                 }
-                Text(detail)
+                Text(verbatim: detail)
                     .font(.system(size: 11, design: session.currentTool != nil && !isFinished ? .monospaced : .default))
                     .foregroundStyle(.secondary)
                     .lineLimit(1)
@@ -151,22 +158,22 @@ private struct SessionRow: View {
             if hovering {
                 HStack(spacing: 2) {
                     if isFinished, let message = session.lastMessage {
-                        iconButton(copied ? "checkmark" : "doc.on.doc", help: "Cevabı kopyala") {
+                        iconButton(copied ? "checkmark" : "doc.on.doc", help: String(localized: "Copy answer")) {
                             NSPasteboard.general.clearContents()
                             NSPasteboard.general.setString(message, forType: .string)
                             withAnimation(.snappy) { copied = true }
                             Task { try? await Task.sleep(for: .seconds(1.5)); copied = false }
                         }
                     }
-                    if let jump { iconButton("arrow.up.forward.app", help: "Terminale git", action: jump) }
-                    if isFinished { iconButton("xmark", help: "Listeden kaldır", action: dismiss) }
+                    if let jump { iconButton("arrow.up.forward.app", help: String(localized: "Go to terminal"), action: jump) }
+                    if isFinished { iconButton("xmark", help: String(localized: "Remove from list"), action: dismiss) }
                 }
                 .transition(.opacity)
             } else if let jump, needsYou {
-                iconButton("arrow.up.forward.app", help: "Terminale git", tint: session.status.tint, action: jump)
+                iconButton("arrow.up.forward.app", help: String(localized: "Go to terminal"), tint: session.status.tint, action: jump)
             } else {
                 TimelineView(.periodic(from: .now, by: 1)) { context in
-                    Text(shortElapsed(from: session.statusSince, to: context.date))
+                    Text(verbatim: shortElapsed(from: session.statusSince, to: context.date))
                         .font(.system(size: 11).monospacedDigit())
                         .foregroundStyle(.tertiary)
                 }
@@ -177,20 +184,20 @@ private struct SessionRow: View {
         .contentShape(RoundedRectangle(cornerRadius: 12))
         .onTapGesture { jump?() }
         .onHover { isHovering in withAnimation(.snappy(duration: 0.15)) { hovering = isHovering } }
-        .help(isFinished ? (session.lastMessage ?? "") : (jump == nil ? "" : "Tıkla: terminale git"))
+        .help(isFinished ? (session.lastMessage ?? "") : (jump == nil ? "" : String(localized: "Click to go to its terminal")))
     }
 
     /// The second line: the current tool while working, the answer's first line when finished.
     private var detail: String {
         switch session.status {
         case .working, .needsApproval:
-            return session.currentTool ?? "Düşünüyor…"
+            return session.currentTool ?? String(localized: "Thinking…")
         case .waitingForUser:
-            return session.lastMessage.map(Self.firstLine) ?? "Cevabını bekliyor"
+            return session.lastMessage.map(Self.firstLine) ?? String(localized: "Waiting for your reply")
         case .done, .error:
             return session.lastMessage.map(Self.firstLine) ?? session.status.title
         case .idle:
-            return "Hazır"
+            return session.status.title
         }
     }
 
@@ -218,22 +225,23 @@ private struct SessionRow: View {
     }
 }
 
+/// "12s", "5m", "2h".
 func shortElapsed(from start: Date, to now: Date) -> String {
     let seconds = max(0, Int(now.timeIntervalSince(start)))
-    if seconds < 60 { return "\(seconds) sn" }
-    if seconds < 3600 { return "\(seconds / 60) dk" }
-    return "\(seconds / 3600) sa"
+    if seconds < 60 { return String(localized: "\(seconds)s") }
+    if seconds < 3600 { return String(localized: "\(seconds / 60)m") }
+    return String(localized: "\(seconds / 3600)h")
 }
 
 extension SessionStatus {
     var title: String {
         switch self {
-        case .idle: "Hazır"
-        case .working: "Çalışıyor"
-        case .needsApproval: "İzin bekliyor"
-        case .waitingForUser: "Seni bekliyor"
-        case .done: "Bitti"
-        case .error: "Hata"
+        case .idle: String(localized: "Ready")
+        case .working: String(localized: "Working")
+        case .needsApproval: String(localized: "Needs permission")
+        case .waitingForUser: String(localized: "Waiting for you")
+        case .done: String(localized: "Done")
+        case .error: String(localized: "Error")
         }
     }
 
@@ -249,7 +257,7 @@ extension SessionStatus {
     }
 }
 
-/// Small status glyph used in the closed notch and in session rows.
+/// Small status glyph used in the headline and in session rows.
 struct StatusIndicator: View {
     let status: SessionStatus
 
@@ -275,29 +283,8 @@ struct StatusIndicator: View {
     }
 }
 
-struct EmptyState: View {
-    let symbol: String
-    let title: String
-    let detail: String
-
-    var body: some View {
-        HStack(spacing: 12) {
-            Image(systemName: symbol)
-                .font(.system(size: 20, weight: .light))
-                .foregroundStyle(.secondary)
-            VStack(alignment: .leading, spacing: 2) {
-                Text(title).font(.system(size: 13, weight: .medium))
-                Text(detail).font(.system(size: 11)).foregroundStyle(.secondary)
-            }
-            Spacer()
-        }
-        .padding(14)
-        .background(RoundedRectangle(cornerRadius: 12, style: .continuous).fill(Color.cardFill))
-    }
-}
-
 struct PillButtonStyle: ButtonStyle {
-    enum Kind { case primary, secondary, destructive }
+    enum Kind { case primary, secondary }
     var kind: Kind
 
     func makeBody(configuration: Configuration) -> some View {
@@ -305,19 +292,11 @@ struct PillButtonStyle: ButtonStyle {
             .font(.system(size: 12, weight: .semibold))
             .padding(.horizontal, 12)
             .frame(height: 26)
-            .foregroundStyle(kind == .primary ? .white : kind == .destructive ? .red : .white.opacity(0.9))
-            .background(Capsule().fill(background))
+            .foregroundStyle(kind == .primary ? .white : .white.opacity(0.9))
+            .background(Capsule().fill(kind == .primary ? Color.claude : .white.opacity(0.12)))
             .scaleEffect(configuration.isPressed ? 0.96 : 1)
             .opacity(configuration.isPressed ? 0.85 : 1)
             .animation(.snappy(duration: 0.15), value: configuration.isPressed)
             .contentShape(Capsule())
-    }
-
-    private var background: Color {
-        switch kind {
-        case .primary: .claude
-        case .secondary: .white.opacity(0.12)
-        case .destructive: .red.opacity(0.15)
-        }
     }
 }

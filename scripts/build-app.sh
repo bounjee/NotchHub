@@ -12,6 +12,8 @@ mkdir -p "$APP/Contents/MacOS" "$APP/Contents/Resources"
 cp "$BIN/NotchHub" "$BIN/notch-hook" "$APP/Contents/MacOS/"
 # Regenerate with: swift scripts/make-icon.swift, then iconutil (see README).
 cp Resources/AppIcon.icns "$APP/Contents/Resources/"
+# English is the development language (the keys); other languages live in <lang>.lproj.
+for lproj in Resources/*.lproj; do cp -R "$lproj" "$APP/Contents/Resources/"; done
 
 VERSION="$(git describe --tags --always 2>/dev/null || echo 1.0)"
 cat > "$APP/Contents/Info.plist" <<PLIST
@@ -30,10 +32,9 @@ cat > "$APP/Contents/Info.plist" <<PLIST
     <key>LSMinimumSystemVersion</key><string>15.0</string>
     <key>LSUIElement</key><true/>
     <key>NSHighResolutionCapable</key><true/>
-    <key>CFBundleDevelopmentRegion</key><string>tr</string>
-    <key>NSAppleEventsUsageDescription</key><string>Claude Code oturumunun çalıştığı terminal sekmesini öne getirmek için.</string>
-    <key>NSDownloadsFolderUsageDescription</key><string>Yeni indirilen dosyaları rafa eklemek için.</string>
-    <key>NSDesktopFolderUsageDescription</key><string>Yeni ekran görüntülerini rafa eklemek için.</string>
+    <key>CFBundleDevelopmentRegion</key><string>en</string>
+    <key>CFBundleLocalizations</key><array><string>en</string><string>tr</string></array>
+    <key>NSAppleEventsUsageDescription</key><string>To bring the terminal tab of a Claude Code session to the front.</string>
 </dict>
 </plist>
 PLIST

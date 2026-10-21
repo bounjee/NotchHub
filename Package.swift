@@ -7,7 +7,7 @@ let package = Package(
     targets: [
         .executableTarget(
             name: "NotchHub",
-            linkerSettings: [.linkedFramework("IOKit"), .linkedFramework("ServiceManagement")]
+            linkerSettings: [.linkedFramework("ServiceManagement")]
         ),
         .executableTarget(name: "notch-hook"),
         .testTarget(name: "NotchHubTests", dependencies: ["NotchHub", "notch-hook"]),

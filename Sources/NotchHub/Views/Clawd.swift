@@ -7,7 +7,7 @@ import SwiftUI
 ///     ▝▜█████▛▘
 ///       ▘▘ ▝▝
 enum Clawd {
-    enum Pose: CaseIterable { case normal, blink, step, armsUp, lookLeft, lookRight, wave, asleep }
+    enum Pose: CaseIterable { case normal, blink, armsUp, wave, asleep }
 
     static let width = 18
     static let height = 5
@@ -21,10 +21,7 @@ enum Clawd {
         return switch pose {
         case .normal: [middle, "...##.######.##...", body, middle, legs]
         case .blink: [middle, middle, body, middle, legs]
-        case .step: [middle, "...##.######.##...", body, middle, ".....#.#..#.#....."]
         case .armsUp: [".#.############.#.", ".#.##.######.##.#.", middle, middle, legs]
-        case .lookLeft: [middle, "...#.######.###...", body, middle, legs]
-        case .lookRight: [middle, "...###.######.#...", body, middle, legs]
         case .wave: [".#.############...", ".#.##.######.##...", "...##############.", middle, legs]
         // Closed eyes: "_" is body with a thin dark line through it, right where each eye is.
         case .asleep: [middle, "...##_######_##...", body, middle, legs]
@@ -63,9 +60,6 @@ enum Clawd {
     }
 
     static let orange = NSColor(srgbRed: 0.85, green: 0.47, blue: 0.34, alpha: 1)
-
-    /// A short routine a resting mascot plays now and then.
-    enum Fidget: CaseIterable { case lookAround, wave, hop, stretch }
 }
 
 /// The mascot as a layer. Every motion is a Core Animation animation, so it runs in the
@@ -124,19 +118,8 @@ final class ClawdSprite: CALayer {
         add(animation, forKey: "frames")
     }
 
-    func bob(duration: CFTimeInterval) {
-        let animation = CAKeyframeAnimation(keyPath: "transform.translation.y")
-        animation.values = [0, pixelHeight * 0.5, 0]
-        animation.calculationMode = .discrete
-        animation.duration = duration
-        animation.repeatCount = .infinity
-        animation.isRemovedOnCompletion = false
-        add(animation, forKey: "bob")
-    }
-
     func stopMoving() {
         removeAnimation(forKey: "frames")
-        removeAnimation(forKey: "bob")
     }
 
     /// Plays poses once on top of the running loop, which takes over again afterwards.
@@ -180,54 +163,27 @@ final class ClawdSprite: CALayer {
         transform = left ? CATransform3DMakeScale(-1, 1, 1) : CATransform3DIdentity
         CATransaction.commit()
     }
-
-    func fidget(_ fidget: Clawd.Fidget, resting: Clawd.Pose) {
-        switch fidget {
-        case .lookAround:
-            play([(.lookLeft, 0.7), (resting, 0.25), (.lookRight, 0.7), (resting, 0.1)])
-        case .wave:
-            play([(.wave, 0.22), (.normal, 0.22), (.wave, 0.22), (.normal, 0.22), (.wave, 0.22), (resting, 0.1)])
-        case .hop:
-            hop()
-        case .stretch:
-            play([(.armsUp, 0.9), (.blink, 0.25), (resting, 0.1)])
-        }
-    }
 }
 
-/// The mascot, animated by its session state.
+/// A still mascot that blinks now and then (the empty panel).
 struct ClawdView: NSViewRepresentable {
-    var status: SessionStatus?
-    /// Bump to make it jump for joy once.
-    var celebration = 0
     var pixel: CGFloat = 1.6
-    /// Plays a small random routine now and then while resting.
-    var fidgets = false
 
     func makeNSView(context: Context) -> ClawdLayerView { ClawdLayerView() }
 
-    func updateNSView(_ view: ClawdLayerView, context: Context) {
-        view.fidgets = fidgets
-        view.update(status: status, celebration: celebration)
-    }
+    func updateNSView(_ view: ClawdLayerView, context: Context) {}
 
     func sizeThatFits(_ proposal: ProposedViewSize, nsView: ClawdLayerView, context: Context) -> CGSize? {
-        // Room above for jumps.
-        CGSize(width: CGFloat(Clawd.width) * pixel, height: (CGFloat(Clawd.height) + 2) * pixel * Clawd.pixelAspect)
+        CGSize(width: CGFloat(Clawd.width) * pixel, height: CGFloat(Clawd.height) * pixel * Clawd.pixelAspect)
     }
 }
 
 final class ClawdLayerView: NSView {
     private let sprite = ClawdSprite()
-    private var status: SessionStatus??
-    private var celebration = 0
-    private var fidgetTask: Task<Void, Never>?
-    var fidgets = false
 
     override init(frame: NSRect) {
         super.init(frame: frame)
         wantsLayer = true
-        layer?.masksToBounds = false
         layer?.addSublayer(sprite)
     }
 
@@ -237,71 +193,13 @@ final class ClawdLayerView: NSView {
         super.layout()
         CATransaction.begin()
         CATransaction.setDisableActions(true)
-        let spriteHeight = bounds.width * CGFloat(Clawd.height) * Clawd.pixelAspect / CGFloat(Clawd.width)
-        let firstLayout = sprite.bounds.isEmpty
-        sprite.frame = CGRect(x: 0, y: 0, width: bounds.width, height: spriteHeight)
+        sprite.frame = bounds
         CATransaction.commit()
-        // Motion is sized by the sprite, so set it up again once it has a size.
-        if firstLayout, !bounds.isEmpty, let status { applyAnimations(for: status) }
     }
 
     override func viewDidMoveToWindow() {
         super.viewDidMoveToWindow()
         // Animations are dropped when the layer leaves a window; start over.
-        if window != nil, let status { applyAnimations(for: status) }
-        updateFidgeting()
-    }
-
-    func update(status: SessionStatus?, celebration: Int) {
-        sprite.setColor(status == .error ? NSColor.systemRed : Clawd.orange)
-        if self.status != .some(status) {
-            self.status = .some(status)
-            applyAnimations(for: status)
-            updateFidgeting()
-        }
-        if celebration != self.celebration {
-            self.celebration = celebration
-            sprite.hop(twice: true)
-        }
-    }
-
-    private var restingPose: Clawd.Pose { .normal }
-
-    private var isResting: Bool {
-        switch status {
-        case .some(.working), .some(.needsApproval): false
-        default: true
-        }
-    }
-
-    private func applyAnimations(for status: SessionStatus?) {
-        sprite.removeAllAnimations()
-        switch status {
-        case .working:
-            // Thinking: it stays put and only its eyes wander.
-            sprite.show(.normal)
-            sprite.loop([.normal, .lookLeft, .normal, .lookRight], duration: 4)
-        case .needsApproval:
-            sprite.show(.armsUp)
-            sprite.loop([.armsUp, .normal], duration: 1.2)
-        case .done:
-            sprite.blink(open: .normal, every: 4)
-        default:
-            sprite.blink(open: .normal, every: 3.2)
-        }
-    }
-
-    /// A resting mascot mostly sits still; now and then it looks around or stretches.
-    private func updateFidgeting() {
-        fidgetTask?.cancel()
-        fidgetTask = nil
-        guard fidgets, window != nil, isResting else { return }
-        fidgetTask = Task { [weak self] in
-            while !Task.isCancelled {
-                try? await Task.sleep(for: .seconds(Double.random(in: 15...30)))
-                guard !Task.isCancelled, let self, self.isResting else { return }
-                self.sprite.fidget([Clawd.Fidget.lookAround, .stretch].randomElement()!, resting: self.restingPose)
-            }
-        }
+        if window != nil { sprite.blink(open: .normal, every: 3.2) }
     }
 }

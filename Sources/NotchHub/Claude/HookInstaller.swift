@@ -23,8 +23,8 @@ enum HookInstaller {
         case invalidJSON, hookMissing(String)
         var errorDescription: String? {
             switch self {
-            case .invalidJSON: "~/.claude/settings.json geçerli bir JSON değil. Dosyaya dokunulmadı."
-            case .hookMissing(let path): "\(path) bulunamadı. NotchHub'ı /Applications klasörüne kopyalayıp tekrar dene."
+            case .invalidJSON: String(localized: "~/.claude/settings.json is not valid JSON. It was left untouched.")
+            case .hookMissing(let path): String(localized: "\(path) was not found. Copy NotchHub to /Applications and try again.")
             }
         }
     }

@@ -1,0 +1,75 @@
+/* NotchHub — Türkçe. Keys are the English text used in the code. */
+
+/* Session states */
+"Ready" = "Hazır";
+"Working" = "Çalışıyor";
+"Needs permission" = "İzin bekliyor";
+"Waiting for you" = "Seni bekliyor";
+"Done" = "Bitti";
+"Error" = "Hata";
+"done" = "bitti";
+"idle" = "boşta";
+
+/* Panel */
+"No active Claude Code sessions" = "Aktif Claude Code oturumu yok";
+"Run claude in a terminal and it shows up here." = "Bir terminalde claude çalıştır, burada görünür.";
+"Install the hooks from the NotchHub menu in the menu bar." = "Menü çubuğundaki NotchHub menüsünden hook'ları kur.";
+"Permission needed" = "İzin gerekiyor";
+"Answer in terminal" = "Terminalde cevapla";
+"You can also answer in the terminal" = "Terminalden de cevaplayabilirsin";
+"Deny" = "Reddet";
+"Always" = "Her zaman";
+"Allow" = "İzin ver";
+"Allow and save the rule Claude Code suggests" = "İzin ver ve Claude Code'un önerdiği kuralı kaydet";
+"Not looked at yet" = "Henüz bakmadın";
+"Copy answer" = "Cevabı kopyala";
+"Go to terminal" = "Terminale git";
+"Remove from list" = "Listeden kaldır";
+"Click to go to its terminal" = "Tıkla: terminaline git";
+"Thinking…" = "Düşünüyor…";
+"Waiting for your reply" = "Cevabını bekliyor";
+
+/* Elapsed time and resets */
+"%llds" = "%lld sn";
+"%lldm" = "%lld dk";
+"%lldh" = "%lld sa";
+"%lldh %lldm" = "%lld sa %lld dk";
+"%lldd %lldh" = "%lld gün %lld sa";
+
+/* Plan usage */
+"5 hours" = "5 saat";
+"7 days" = "7 gün";
+"resets in %@" = "%@ sonra sıfırlanır";
+"Claude 5-hour usage · resets in %@" = "Claude 5 saatlik kullanım · %@ sonra sıfırlanır";
+"Claude limit %lld%%" = "Claude limiti %%%lld";
+
+/* Desktop mascot */
+"Claude: %@" = "Claude: %@";
+"Limit: %@" = "Limit: %@";
+"no data yet" = "henüz bilgi yok";
+"5h %lld%%" = "5 saat %%%lld";
+"week %lld%%" = "hafta %%%lld";
+"Last done: %@ · %@ ago" = "Son biten: %@ · %@ önce";
+"%@ done ✓" = "%@ bitti ✓";
+"Permission needed! 🙋" = "İzin lazım! 🙋";
+"Good morning! ☀️" = "Günaydın! ☀️";
+"Show Info" = "Bilgi göster";
+"Open Panel" = "Paneli aç";
+"Wake Up" = "Uyandır";
+"Sleep" = "Uyut";
+"Reset Position" = "Konumu sıfırla";
+"Hide Mascot" = "Maskotu gizle";
+"Turn it back on from the NotchHub menu in the menu bar." = "Menü çubuğundaki NotchHub menüsünden tekrar açabilirsin.";
+
+/* Menu bar */
+"Claude Code hooks installed" = "Claude Code hook'ları kurulu";
+"Claude Code hooks not installed" = "Claude Code hook'ları kurulu değil";
+"Install Hooks" = "Hook'ları kur";
+"Remove Hooks" = "Hook'ları kaldır";
+"Desktop Mascot" = "Masaüstü maskotu";
+"Open at Login" = "Girişte aç";
+"Quit NotchHub" = "NotchHub'dan çık";
+"Could not change the hooks" = "Hook ayarı değiştirilemedi";
+"Could not change Open at Login" = "Girişte açma ayarlanamadı";
+"~/.claude/settings.json is not valid JSON. It was left untouched." = "~/.claude/settings.json geçerli bir JSON değil. Dosyaya dokunulmadı.";
+"%@ was not found. Copy NotchHub to /Applications and try again." = "%@ bulunamadı. NotchHub'ı /Applications klasörüne kopyalayıp tekrar dene.";

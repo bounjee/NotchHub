@@ -84,7 +84,7 @@ import Testing
         let decision = output["decision"] as! [String: Any]
         #expect(output["hookEventName"] as? String == "PermissionRequest")
         #expect(decision["behavior"] as? String == "deny")
-        #expect(decision["message"] as? String == "Kullanıcı çentikten reddetti")
+        #expect(decision["message"] as? String == "The user denied this from the notch")
     }
 
     @Test func allowAlwaysForwardsRules() throws {
@@ -167,7 +167,7 @@ import Testing
         let base = FileManager.default.homeDirectoryForCurrentUser
             .appendingPathComponent("Library/Caches/notchhub-test-\(UUID().uuidString.prefix(6))")
         defer { try? FileManager.default.removeItem(at: base) }
-        let repo = base.appendingPathComponent("dolphydesk")
+        let repo = base.appendingPathComponent("my-app")
         let worktree = repo.appendingPathComponent(".claude/worktrees/fix-login/src")
         try FileManager.default.createDirectory(at: repo.appendingPathComponent(".git/worktrees/fix-login"), withIntermediateDirectories: true)
         try FileManager.default.createDirectory(at: worktree, withIntermediateDirectories: true)
@@ -175,7 +175,7 @@ import Testing
 
         _ = try runHook(#"{"hook_event_name":"SessionStart","session_id":"s","cwd":"\#(worktree.path)"}"#)
         try waitUntil { received.get() != nil }
-        #expect(received.get()?.project == "dolphydesk")
+        #expect(received.get()?.project == "my-app")
     }
 
     @Test func emptyInputExitsQuietly() throws {

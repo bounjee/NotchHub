@@ -12,13 +12,13 @@ extension UsageWindow {
     func resetText(from now: Date = Date()) -> String {
         let seconds = max(0, Int(resetsAt.timeIntervalSince(now)))
         let days = seconds / 86_400, hours = seconds % 86_400 / 3600, minutes = seconds % 3600 / 60
-        if days > 0 { return "\(days) gün \(hours) sa" }
-        if hours > 0 { return "\(hours) sa \(minutes) dk" }
-        return "\(max(1, minutes)) dk"
+        if days > 0 { return String(localized: "\(days)d \(hours)h") }
+        if hours > 0 { return String(localized: "\(hours)h \(minutes)m") }
+        return String(localized: "\(max(1, minutes))m")
     }
 }
 
-/// Small ring with the five-hour usage, shown beside the battery while open.
+/// Small ring with the five-hour usage, in the panel header.
 struct UsageRing: View {
     let limits: UsageLimits
 
@@ -33,17 +33,17 @@ struct UsageRing: View {
                         .rotationEffect(.degrees(-90))
                 }
                 .frame(width: 12, height: 12)
-                Text("\(Int(window.usedPercentage.rounded()))%")
+                Text(verbatim: "\(Int(window.usedPercentage.rounded()))%")
                     .font(.system(size: 12, weight: .medium).monospacedDigit())
                     .foregroundStyle(.white.opacity(0.8))
             }
-            .help("Claude 5 saatlik kullanım · \(window.resetText()) sonra sıfırlanır")
+            .help(String(localized: "Claude 5-hour usage · resets in \(window.resetText())"))
             .animation(.smooth, value: window.usedPercentage)
         }
     }
 }
 
-/// Five-hour and weekly plan usage at the top of the Claude tab.
+/// Five-hour and weekly plan usage at the top of the panel.
 struct UsageSummary: View {
     let limits: UsageLimits
 
@@ -52,8 +52,8 @@ struct UsageSummary: View {
         if !current.isEmpty {
             TimelineView(.periodic(from: .now, by: 30)) { context in
                 HStack(spacing: 14) {
-                    if let window = current.fiveHour { bar("5 saat", window, now: context.date) }
-                    if let window = current.sevenDay { bar("7 gün", window, now: context.date) }
+                    if let window = current.fiveHour { bar(String(localized: "5 hours"), window, now: context.date) }
+                    if let window = current.sevenDay { bar(String(localized: "7 days"), window, now: context.date) }
                 }
             }
             .padding(.horizontal, 12)
@@ -65,12 +65,12 @@ struct UsageSummary: View {
     private func bar(_ title: String, _ window: UsageWindow, now: Date) -> some View {
         VStack(alignment: .leading, spacing: 5) {
             HStack(spacing: 6) {
-                Text(title).font(.system(size: 11, weight: .semibold))
-                Text("\(Int(window.usedPercentage.rounded()))%")
+                Text(verbatim: title).font(.system(size: 11, weight: .semibold))
+                Text(verbatim: "\(Int(window.usedPercentage.rounded()))%")
                     .font(.system(size: 11, weight: .semibold).monospacedDigit())
                     .foregroundStyle(window.level)
                 Spacer(minLength: 4)
-                Text("\(window.resetText(from: now)) sonra sıfırlanır")
+                Text("resets in \(window.resetText(from: now))")
                     .font(.system(size: 10.5))
                     .foregroundStyle(.tertiary)
             }
