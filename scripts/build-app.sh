@@ -47,8 +47,9 @@ PLIST
 # A stable identity (scripts/make-signing-identity.sh) keeps Screen Recording permission
 # across updates; without one, fall back to an ad-hoc signature (CI, other Macs).
 SIGNING_KEYCHAIN="$HOME/.notchhub-signing/signing.keychain-db"
-if [ -f "$SIGNING_KEYCHAIN" ]; then
-    security unlock-keychain -p notchhub-signing "$SIGNING_KEYCHAIN"
+SIGNING_PASSWORD="$(security find-generic-password -a "$USER" -s "NotchHub signing keychain" -w 2>/dev/null || true)"
+if [ -f "$SIGNING_KEYCHAIN" ] && [ -n "$SIGNING_PASSWORD" ]; then
+    security unlock-keychain -p "$SIGNING_PASSWORD" "$SIGNING_KEYCHAIN"
     IDENTITY="$(security find-identity -p codesigning "$SIGNING_KEYCHAIN" | awk '/NotchHub Self-Signed/ { print $2; exit }')"
     # codesign only finds identities in the search list: add the keychain for this one call.
     ORIGINAL_KEYCHAINS=()

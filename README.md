@@ -137,7 +137,7 @@ If you build it yourself, run this once first:
 ./scripts/make-signing-identity.sh
 ```
 
-It creates a self-signed certificate in its own keychain under `~/.notchhub-signing`. Your login keychain isn't touched and nothing is marked as trusted. `build-app.sh` uses this certificate when it's there. Without it, every build gets a new signature, and macOS asks for Screen Recording permission again after each one.
+It creates a self-signed certificate in its own keychain under `~/.notchhub-signing`. Nothing is marked as trusted. That keychain's password is random and is stored in your login keychain as "NotchHub signing keychain". `build-app.sh` uses this certificate when it's there. Without it, every build gets a new signature, and macOS asks for Screen Recording permission again after each one.
 
 ## How it works
 

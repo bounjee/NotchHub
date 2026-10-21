@@ -5,15 +5,15 @@
 # the signature, so every update would lose it. Signed with this identity instead, every build
 # keeps the same designated requirement and the permission survives updates.
 #
-# The identity lives in its own keychain file under ~/.notchhub-signing, so the login keychain
-# is left alone and nothing is marked as trusted. scripts/build-app.sh uses it when present.
+# The identity lives in its own keychain file under ~/.notchhub-signing and nothing is marked
+# as trusted. That keychain's password is random and kept in the login keychain, so the private
+# key can't be unlocked by anyone who merely reads the file. scripts/build-app.sh uses it.
 set -euo pipefail
 
 DIR="$HOME/.notchhub-signing"
 KEYCHAIN="$DIR/signing.keychain-db"
 NAME="NotchHub Self-Signed"
-# Only protects this throwaway keychain, which holds nothing but the signing key.
-PASSWORD="notchhub-signing"
+SERVICE="NotchHub signing keychain"
 
 if [ -f "$DIR/.done" ] && [ -f "$KEYCHAIN" ]; then
     echo "Signing identity already exists in $KEYCHAIN"
@@ -22,6 +22,8 @@ fi
 
 mkdir -p "$DIR"
 chmod 700 "$DIR"
+PASSWORD="$(/usr/bin/openssl rand -base64 32)"
+security add-generic-password -U -a "$USER" -s "$SERVICE" -w "$PASSWORD"
 WORK="$(mktemp -d)"
 trap 'rm -rf "$WORK"' EXIT
 # The system's LibreSSL: Homebrew's OpenSSL 3 writes PKCS#12 files the Keychain can't read.
