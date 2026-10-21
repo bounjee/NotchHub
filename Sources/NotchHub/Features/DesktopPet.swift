@@ -433,7 +433,7 @@ final class DesktopPet {
         guard let view, !isAsleep, !isCarried else { return }
         isAsleep = true
         view.sprite.removeAnimation(forKey: "frames")
-        view.sprite.show(.blink)
+        view.sprite.show(.asleep)
         view.setSleeping(true)
     }
 

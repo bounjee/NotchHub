@@ -302,10 +302,36 @@ private func makeModel() -> NotchModel {
     @Test func peeksOnlyWhenReallyDone() {
         var peeks: [PeekReason] = []
         store.onPeek = { peeks.append($0) }
+        store.handle(hook("UserPromptSubmit"))
+        store.handle(hook("PreToolUse", bash("ls", id: "t1")))
         store.handle(hook("Stop", ["background_tasks": [["id": "b"]]]))
         #expect(peeks.isEmpty)
         store.handle(hook("Stop", ["background_tasks": []]))
         #expect(peeks == [.claudeDone("project")])
+    }
+
+    @Test func quickHelperSessionsAreNotCelebratedOrKept() {
+        var peeks: [PeekReason] = []
+        store.onPeek = { peeks.append($0) }
+        // A title or suggestion helper: prompt, answer, gone within a second, no tools.
+        let start = Date()
+        store.handle(hook("SessionStart", session: "helper"), now: start)
+        store.handle(hook("UserPromptSubmit", session: "helper"), now: start)
+        store.handle(hook("Stop", ["background_tasks": [], "last_assistant_message": "Başlık"], session: "helper"), now: start.addingTimeInterval(0.5))
+        #expect(peeks.isEmpty)
+        store.handle(hook("SessionEnd", session: "helper"), now: start.addingTimeInterval(0.6))
+        #expect(store.sessions["helper"] == nil)
+    }
+
+    @Test func aLongAnswerWithoutToolsStillCounts() {
+        var peeks: [PeekReason] = []
+        store.onPeek = { peeks.append($0) }
+        let start = Date()
+        store.handle(hook("UserPromptSubmit"), now: start)
+        store.handle(hook("Stop", ["background_tasks": []]), now: start.addingTimeInterval(12))
+        #expect(peeks == [.claudeDone("project")])
+        store.handle(hook("SessionEnd"), now: start.addingTimeInterval(12.2))
+        #expect(store.sessions["s1"]?.status == .done)
     }
 
     @Test func dismissingASessionReleasesItsHook() {

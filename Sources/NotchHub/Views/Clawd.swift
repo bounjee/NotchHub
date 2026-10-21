@@ -7,7 +7,7 @@ import SwiftUI
 ///     ▝▜█████▛▘
 ///       ▘▘ ▝▝
 enum Clawd {
-    enum Pose: CaseIterable { case normal, blink, step, armsUp, happy, lookLeft, lookRight, wave }
+    enum Pose: CaseIterable { case normal, blink, step, armsUp, happy, lookLeft, lookRight, wave, asleep }
 
     static let width = 18
     static let height = 5
@@ -27,20 +27,29 @@ enum Clawd {
         case .lookLeft: [middle, "...#.######.###...", body, middle, legs]
         case .lookRight: [middle, "...###.######.#...", body, middle, legs]
         case .wave: [".#.############...", ".#.##.######.##...", "...##############.", middle, legs]
+        // Closed eyes: "_" keeps the upper half of the pixel, leaving a thin line where the eye was.
+        case .asleep: [middle, "...##_######_##...", body, middle, legs]
         }
     }
 
-    /// One image pixel per mascot pixel; the layer scales it up without smoothing.
+    /// Two image rows per mascot row (each mascot pixel is twice as tall as wide, so half
+    /// pixels are possible); the layer scales it up without smoothing.
     static func image(_ pose: Pose, color: NSColor) -> CGImage? {
+        let imageHeight = height * 2
         guard let context = CGContext(
-            data: nil, width: width, height: height, bitsPerComponent: 8, bytesPerRow: 0,
+            data: nil, width: width, height: imageHeight, bitsPerComponent: 8, bytesPerRow: 0,
             space: CGColorSpace(name: CGColorSpace.sRGB)!, bitmapInfo: CGImageAlphaInfo.premultipliedLast.rawValue
         ) else { return nil }
         context.setFillColor(color.cgColor)
         for (y, row) in rows(pose).enumerated() {
-            for (x, cell) in row.enumerated() where cell == "#" {
-                // CGContext's origin is bottom-left.
-                context.fill(CGRect(x: x, y: height - 1 - y, width: 1, height: 1))
+            // CGContext's origin is bottom-left.
+            let bottom = imageHeight - 2 * (y + 1)
+            for (x, cell) in row.enumerated() {
+                switch cell {
+                case "#": context.fill(CGRect(x: x, y: bottom, width: 1, height: 2))
+                case "_": context.fill(CGRect(x: x, y: bottom + 1, width: 1, height: 1))
+                default: break
+                }
             }
         }
         return context.makeImage()
@@ -262,12 +271,12 @@ final class ClawdLayerView: NSView {
         sprite.removeAllAnimations()
         switch status {
         case .working:
+            // Thinking: it stays put and only its eyes wander.
             sprite.show(.normal)
-            sprite.loop([.normal, .step], duration: 0.36)
-            sprite.bob(duration: 0.36)
+            sprite.loop([.normal, .lookLeft, .normal, .lookRight], duration: 4)
         case .needsApproval:
             sprite.show(.armsUp)
-            sprite.loop([.armsUp, .normal], duration: 0.7)
+            sprite.loop([.armsUp, .normal], duration: 1.2)
         case .done:
             sprite.blink(open: .happy, every: 4)
         default:
@@ -275,16 +284,16 @@ final class ClawdLayerView: NSView {
         }
     }
 
-    /// A resting mascot looks around, waves, hops or stretches every few seconds.
+    /// A resting mascot mostly sits still; now and then it looks around or stretches.
     private func updateFidgeting() {
         fidgetTask?.cancel()
         fidgetTask = nil
         guard fidgets, window != nil, isResting else { return }
         fidgetTask = Task { [weak self] in
             while !Task.isCancelled {
-                try? await Task.sleep(for: .seconds(Double.random(in: 6...12)))
+                try? await Task.sleep(for: .seconds(Double.random(in: 15...30)))
                 guard !Task.isCancelled, let self, self.isResting else { return }
-                self.sprite.fidget(Clawd.Fidget.allCases.randomElement()!, resting: self.restingPose)
+                self.sprite.fidget([Clawd.Fidget.lookAround, .stretch].randomElement()!, resting: self.restingPose)
             }
         }
     }

@@ -8,6 +8,7 @@ import Testing
             let rows = Clawd.rows(pose)
             #expect(rows.count == Clawd.height, "\(pose)")
             #expect(rows.allSatisfy { $0.count == Clawd.width }, "\(pose)")
+            #expect(rows.joined().allSatisfy { "#._".contains($0) }, "\(pose)")
             #expect(Clawd.image(pose, color: Clawd.orange) != nil)
         }
     }
@@ -18,6 +19,22 @@ import Testing
         #expect(eyes(.lookLeft) == [4, 11])
         #expect(eyes(.lookRight) == [6, 13])
         #expect(eyes(.blink).isEmpty)
+    }
+
+    @Test func sleepingEyesAreClosedNotGone() {
+        let row = Clawd.rows(.asleep)[1]
+        #expect(row.enumerated().filter { $0.element == "_" }.map(\.offset) == [5, 12])
+        // In the double-height image, the upper half of each eye is body and the lower half is open.
+        guard let image = Clawd.image(.asleep, color: .white),
+              let data = image.dataProvider?.data, let bytes = CFDataGetBytePtr(data) else {
+            Issue.record("no image")
+            return
+        }
+        let alpha = { (x: Int, yFromTop: Int) in bytes[yFromTop * image.bytesPerRow + x * 4 + 3] }
+        #expect(image.height == Clawd.height * 2)
+        #expect(alpha(5, 2) > 0)   // eyelid
+        #expect(alpha(5, 3) == 0)  // closed-eye line
+        #expect(alpha(4, 3) > 0)   // body next to it
     }
 }
 

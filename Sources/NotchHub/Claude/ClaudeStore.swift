@@ -14,6 +14,15 @@ struct ClaudeSession: Identifiable, Equatable {
     var statusSince = Date()
     var lastEventAt = Date()
     var terminal: TerminalLocation?
+    /// When the current turn started working, and how many tools it used.
+    var workStartedAt: Date?
+    var toolUses = 0
+
+    /// Claude Code and the desktop app run quick helper sessions (titles, suggestions) that
+    /// also send hooks. A turn counts as real work if it used a tool or took a few seconds.
+    func didRealWork(at now: Date) -> Bool {
+        toolUses > 0 || now.timeIntervalSince(workStartedAt ?? now) >= ClaudeStore.minimumWork
+    }
 }
 
 /// Plan usage from Claude Code's status line (Pro/Max only).
@@ -86,6 +95,7 @@ final class ClaudeStore {
     var onPeek: ((PeekReason) -> Void)?
 
     static let doneLifetime: TimeInterval = 10 * 60
+    nonisolated static let minimumWork: TimeInterval = 4
     /// Sessions closed without SessionEnd (terminal window closed) stop sending events.
     static let staleLifetime: TimeInterval = 30 * 60
 
@@ -112,7 +122,9 @@ final class ClaudeStore {
         }
         defer { refreshHeadline() }
         defer { locateTerminal(event) }
-        defer { log.notice("hook \(event.name, privacy: .public) pending=\(self.pending.count) status=\(String(describing: self.sessions[event.sessionID]?.status), privacy: .public)") }
+        defer {
+            log.notice("hook \(event.name, privacy: .public) session=\(String(event.sessionID.prefix(8)), privacy: .public) label=\(self.sessions[event.sessionID]?.label ?? "-", privacy: .public) type=\(event.notificationType ?? "-", privacy: .public) pending=\(self.pending.count) status=\(String(describing: self.sessions[event.sessionID]?.status), privacy: .public)")
+        }
         lastEventAt = now
         let sid = event.sessionID
 
@@ -178,12 +190,13 @@ final class ClaudeStore {
 
         case "Stop":
             resolvePending(in: sid, with: .none)
+            let worked = sessions[sid]?.didRealWork(at: now) ?? false
             update(sid, event, now) {
                 $0.status = event.hasBackgroundTasks ? .working : .done
                 $0.currentTool = nil
                 if let message = event.lastAssistantMessage, !message.isEmpty { $0.lastMessage = message }
             }
-            if !event.hasBackgroundTasks { onPeek?(.claudeDone(sessions[sid]?.label ?? "Claude")) }
+            if !event.hasBackgroundTasks, worked { onPeek?(.claudeDone(sessions[sid]?.label ?? "Claude")) }
 
         case "StopFailure":
             resolvePending(in: sid, with: .none)
@@ -196,8 +209,12 @@ final class ClaudeStore {
         case "SessionEnd":
             resolvePending(in: sid, with: .none)
             recentToolUses[sid] = nil
-            // `claude -p` ends right after Stop; keep the answer visible until it expires.
-            if sessions[sid]?.status != .done { sessions[sid] = nil }
+            // `claude -p` ends right after Stop; keep its answer visible until it expires,
+            // but let helper sessions that never really worked disappear.
+            if let session = sessions[sid], session.status == .done, session.didRealWork(at: session.statusSince) {
+                break
+            }
+            sessions[sid] = nil
 
         default:
             break
@@ -341,6 +358,13 @@ final class ClaudeStore {
         let previous = session.status
         change(&session)
         if session.status != previous { session.statusSince = now }
+        if event.name == "UserPromptSubmit" {
+            session.workStartedAt = now
+            session.toolUses = 0
+        } else if session.workStartedAt == nil, session.status == .working {
+            session.workStartedAt = now
+        }
+        if event.name == "PreToolUse" { session.toolUses += 1 }
         session.lastEventAt = now
         sessions[sid] = session
     }
