@@ -7,7 +7,7 @@ import SwiftUI
 ///     ▝▜█████▛▘
 ///       ▘▘ ▝▝
 enum Clawd {
-    enum Pose: CaseIterable { case normal, blink, armsUp, wave, asleep }
+    enum Pose: CaseIterable { case normal, blink, armsUp, wave, asleep, typeLeft, typeRight, typeIdle, typeBlink }
 
     static let width = 18
     static let height = 5
@@ -25,7 +25,51 @@ enum Clawd {
         case .wave: [".#.############...", ".#.##.######.##...", "...##############.", middle, legs]
         // Closed eyes: "_" is body with a thin dark line through it, right where each eye is.
         case .asleep: [middle, "...##_######_##...", body, middle, legs]
+        // Typing poses draw from `typingGrid`; these rows are the body behind the laptop.
+        case .typeLeft, .typeRight, .typeIdle: [middle, "...##.######.##...", body, middle, legs]
+        case .typeBlink: [middle, middle, body, middle, legs]
         }
+    }
+
+    /// The mascot typing on a small laptop in front of it, in square pixels (each mascot row
+    /// is two of them): the laptop covers its legs and lower body, the arms stay outside and
+    /// come down onto the lid's edges one after the other. Same 18 × 10 footprint as the mascot.
+    static func typingGrid(_ pose: Pose) -> [[Character]]? {
+        let downLeft = pose == .typeLeft, downRight = pose == .typeRight
+        guard downLeft || downRight || pose == .typeIdle || pose == .typeBlink else { return nil }
+        var grid = rows(pose).flatMap { row in [Array(row), Array(row)] }
+        for (down, columns) in [(downLeft, [1, 2]), (downRight, [15, 16])] where down {
+            for x in columns { grid[4][x] = "."; grid[5][x] = "."; grid[6][x] = "#"; grid[7][x] = "#" }
+        }
+        // Lid seen from behind (highlight, then silver with Claude's orange mark), then the base.
+        for x in 4...13 { grid[7][x] = "^"; grid[8][x] = "=" }
+        grid[8][8] = "o"
+        grid[8][9] = "o"
+        for x in 0..<18 { grid[9][x] = (3...14).contains(x) ? "-" : "." }
+        return grid
+    }
+
+    private static func typingImage(_ grid: [[Character]], color: NSColor) -> CGImage? {
+        let width = grid[0].count, height = grid.count
+        guard let context = CGContext(
+            data: nil, width: width, height: height, bitsPerComponent: 8, bytesPerRow: 0,
+            space: CGColorSpace(name: CGColorSpace.sRGB)!, bitmapInfo: CGImageAlphaInfo.premultipliedLast.rawValue
+        ) else { return nil }
+        let colors: [Character: NSColor] = [
+            "#": color,
+            "o": color,
+            "^": NSColor(srgbRed: 0.83, green: 0.84, blue: 0.87, alpha: 1),
+            "=": NSColor(srgbRed: 0.73, green: 0.74, blue: 0.78, alpha: 1),
+            "-": NSColor(srgbRed: 0.55, green: 0.57, blue: 0.62, alpha: 1),
+        ]
+        for (y, row) in grid.enumerated() {
+            for (x, cell) in row.enumerated() {
+                guard let fill = colors[cell] else { continue }
+                context.setFillColor(fill.cgColor)
+                context.fill(CGRect(x: x, y: height - 1 - y, width: 1, height: 1))
+            }
+        }
+        return context.makeImage()
     }
 
     /// Image rows per mascot row: each mascot pixel is twice as tall as wide, and a closed eye
@@ -34,6 +78,7 @@ enum Clawd {
 
     /// The layer scales the image up without smoothing.
     static func image(_ pose: Pose, color: NSColor) -> CGImage? {
+        if let grid = typingGrid(pose) { return typingImage(grid, color: color) }
         let imageHeight = height * subrows
         guard let context = CGContext(
             data: nil, width: width, height: imageHeight, bitsPerComponent: 8, bytesPerRow: 0,
@@ -113,6 +158,26 @@ final class ClawdSprite: CALayer {
         animation.keyTimes = [0, 0.94, 0.97]
         animation.calculationMode = .discrete
         animation.duration = period
+        animation.repeatCount = .infinity
+        animation.isRemovedOnCompletion = false
+        add(animation, forKey: "frames")
+    }
+
+    /// Loops poses, each held for its own time.
+    func loop(steps: [(Clawd.Pose, CFTimeInterval)]) {
+        let total = steps.reduce(0) { $0 + $1.1 }
+        guard total > 0 else { return }
+        var elapsed: CFTimeInterval = 0
+        var times: [NSNumber] = []
+        for step in steps {
+            times.append(NSNumber(value: elapsed / total))
+            elapsed += step.1
+        }
+        let animation = CAKeyframeAnimation(keyPath: "contents")
+        animation.values = steps.compactMap { frames[$0.0] }
+        animation.keyTimes = times
+        animation.calculationMode = .discrete
+        animation.duration = total
         animation.repeatCount = .infinity
         animation.isRemovedOnCompletion = false
         add(animation, forKey: "frames")

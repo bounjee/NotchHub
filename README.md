@@ -64,14 +64,15 @@ Hover over the notch or click it to open the panel. Switch between the three wit
 
 ## The mascot
 
-<p align="center"><img src="docs/mascot.png" width="560" alt="The desktop mascot, talking and napping"></p>
+<p align="center"><img src="docs/mascot.png" width="560" alt="The desktop mascot: talking, typing along with Claude, and napping"></p>
 
 A little Claude sits on your desktop.
 
 - **Click it** to hear the session status, your plan usage and what finished last, one at a time.
 - **Double-click it** to open the panel.
 - **Drag it anywhere.** It remembers its spot.
-- **Leave it alone** and it naps after 45 seconds.
+- **While Claude works**, it types away on a little laptop.
+- **Leave it alone** and it naps after 45 seconds. It stays up while Claude works.
 - **Right-click it** to hide it. You can also turn it off from the menu bar.
 
 ## Stays out of the way
@@ -172,6 +173,7 @@ NotchHub üç şey yapar, fazlasını değil:
 Bir de masaüstünde küçük bir maskot var:
 
 - İstediğin yere sürüklersin.
+- Claude çalışırken küçük bir laptopta yazı yazar.
 - Dokunulmayınca uyur.
 - Tıklayınca durumu söyler.
 - Sağ tıklayınca menü açılır.

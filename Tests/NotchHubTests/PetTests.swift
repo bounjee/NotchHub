@@ -79,3 +79,20 @@ import Testing
         #expect(PetBrain.sleepAfter >= 30)
     }
 }
+
+@Suite struct TypingPoseTests {
+    @Test func typingKeepsTheMascotsFootprintAndAlternatesArms() throws {
+        for pose in [Clawd.Pose.typeLeft, .typeRight, .typeIdle, .typeBlink] {
+            let grid = try #require(Clawd.typingGrid(pose))
+            #expect(grid.count == Clawd.height * 2)
+            #expect(grid.allSatisfy { $0.count == Clawd.width })
+        }
+        let left = try #require(Clawd.typingGrid(.typeLeft)), right = try #require(Clawd.typingGrid(.typeRight))
+        // The pressing arm sits on the lid's edge, the other stays up.
+        #expect(left[7][1] == "#" && left[4][1] == ".")
+        #expect(left[4][16] == "#" && left[7][16] == ".")
+        #expect(right[7][16] == "#" && right[4][1] == "#")
+        #expect(Clawd.typingGrid(.normal) == nil)
+        #expect(Clawd.image(.typeLeft, color: Clawd.orange)?.width == Clawd.width)
+    }
+}

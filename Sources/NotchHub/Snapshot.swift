@@ -151,10 +151,13 @@ enum Snapshot {
 
     /// The mascot talking and napping, drawn from its pixel art so it stays crisp.
     private static func mascots() -> NSImage {
-        let pixel: CGFloat = 7, cell = CGSize(width: 300, height: 210), padding: CGFloat = 24, gap: CGFloat = 24
+        let pixel: CGFloat = 7, cell = CGSize(width: 260, height: 210), padding: CGFloat = 24, gap: CGFloat = 20
         let sprite = CGSize(width: CGFloat(Clawd.width) * pixel, height: CGFloat(Clawd.height) * pixel * Clawd.pixelAspect)
-        let moods: [(Clawd.Pose, String)] = [(.normal, "Click it: status, usage, last finished"), (.asleep, "Leave it alone: it naps")]
-        let size = CGSize(width: padding * 2 + cell.width * 2 + gap, height: padding * 2 + cell.height)
+        let moods: [(Clawd.Pose, String)] = [
+            (.normal, "Click it: status, usage, last done"), (.typeLeft, "Types along with Claude"), (.asleep, "Leave it alone: it naps"),
+        ]
+        let size = CGSize(width: padding * 2 + cell.width * CGFloat(moods.count) + gap * CGFloat(moods.count - 1),
+                          height: padding * 2 + cell.height)
         return render(size: size) {
             for (index, mood) in moods.enumerated() {
                 let left = padding + CGFloat(index) * (cell.width + gap)
@@ -164,13 +167,15 @@ enum Snapshot {
                     NSImage(cgImage: image, size: sprite).draw(in: spriteRect, from: .zero, operation: .sourceOver, fraction: 1,
                                                                respectFlipped: true, hints: [.interpolation: NSImageInterpolation.none.rawValue])
                 }
-                if mood.0 == .asleep {
+                if mood.0 == .typeLeft {
+                    // The typing pose already holds the laptop.
+                } else if mood.0 == .asleep {
                     for (step, z) in ["z", "z", "Z"].enumerated() {
                         draw(z, at: CGPoint(x: spriteRect.maxX - 10 + CGFloat(step) * 16, y: spriteRect.minY - 26 - CGFloat(step) * 20),
                              size: 14 + CGFloat(step) * 4, weight: .heavy, alpha: 0.85 - CGFloat(step) * 0.15)
                     }
                 } else {
-                    let text = NSAttributedString(string: "Claude: web-app · Working", attributes: attributes(size: 13, weight: .semibold, alpha: 1))
+                    let text = NSAttributedString(string: "web-app · Working", attributes: attributes(size: 13, weight: .semibold, alpha: 1))
                     let bubble = CGRect(x: left + (cell.width - text.size().width - 28) / 2, y: spriteRect.minY - 58,
                                         width: text.size().width + 28, height: 36)
                     let path = NSBezierPath(roundedRect: bubble, xRadius: 12, yRadius: 12)

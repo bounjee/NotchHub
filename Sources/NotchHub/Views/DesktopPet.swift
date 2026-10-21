@@ -368,6 +368,8 @@ final class DesktopPet {
             view.say(String(localized: "✓ \(model.lastFinished ?? "Claude") done"))
         }
         let status = model.claude.headlineStatus
+        // Claude started working: get up and open the laptop too.
+        if status == .working, isAsleep { wake(greeting: nil) }
         if lastStatus != .some(status), status == .needsApproval {
             let asking = model.claude.sortedSessions.first { $0.status == .needsApproval }
             wake(greeting: nil)
@@ -388,6 +390,10 @@ final class DesktopPet {
         guard let view, !isCarried else { return }
         view.sprite.removeAnimation(forKey: "frames")
         switch model.claude.headlineStatus {
+        case .working:
+            // Typing on its little laptop, one arm then the other, with a pause and a blink.
+            let taps: [(Clawd.Pose, CFTimeInterval)] = Array(repeating: [(.typeLeft, 0.22), (.typeRight, 0.22)], count: 4).flatMap { $0 }
+            view.sprite.loop(steps: taps + [(.typeIdle, 0.5), (.typeBlink, 0.12), (.typeIdle, 0.4)])
         case .needsApproval:
             view.sprite.show(.armsUp)
             view.sprite.loop([.armsUp, .normal], duration: 0.6)
@@ -417,8 +423,8 @@ final class DesktopPet {
         sleepTask = Task { [weak self] in
             try? await Task.sleep(for: .seconds(PetBrain.sleepAfter))
             guard !Task.isCancelled, let self else { return }
-            // Stay up while Claude needs an answer.
-            if self.model.claude.headlineStatus == .needsApproval {
+            // Stay up while Claude works or needs an answer.
+            if [.needsApproval, .working].contains(self.model.claude.headlineStatus) {
                 self.scheduleSleep()
                 return
             }
