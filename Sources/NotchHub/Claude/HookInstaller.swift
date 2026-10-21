@@ -46,12 +46,23 @@ enum HookInstaller {
             hooks[event.name] = (hooks[event.name] as? [Any] ?? []) + [group]
         }
         settings["hooks"] = hooks
+        // The status line is the only place Claude Code reports plan usage. Claude Code has a
+        // single status line, so never replace one the user set up.
+        if settings["statusLine"] == nil {
+            settings["statusLine"] = ["type": "command", "command": shellQuoted(hookPath) + " --statusline", "padding": 0]
+        }
         return settings
     }
 
+    /// Whether the status line is ours, i.e. plan usage reaches NotchHub.
+    static func ownsStatusLine(in settings: [String: Any]) -> Bool {
+        isOurs(settings["statusLine"] as Any)
+    }
+
     static func removing(from settings: [String: Any]) -> [String: Any] {
-        guard var hooks = settings["hooks"] as? [String: Any] else { return settings }
         var settings = settings
+        if ownsStatusLine(in: settings) { settings["statusLine"] = nil }
+        guard var hooks = settings["hooks"] as? [String: Any] else { return settings }
         for (event, value) in hooks {
             guard let groups = value as? [Any] else { continue }
             let kept: [Any] = groups.compactMap { item in

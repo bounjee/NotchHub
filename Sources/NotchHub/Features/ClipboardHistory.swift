@@ -6,6 +6,57 @@ struct ClipboardItem: Identifiable, Equatable {
     let text: String
     var copiedAt: Date
     var isPinned = false
+    /// Detected once; drives the row's preview.
+    let kind: ClipboardKind
+
+    init(text: String, copiedAt: Date, isPinned: Bool = false) {
+        self.text = text
+        self.copiedAt = copiedAt
+        self.isPinned = isPinned
+        kind = ClipboardKind.detect(text)
+    }
+}
+
+enum ClipboardKind: Equatable {
+    case text, code, json
+    /// sRGB components 0...1.
+    case color(red: Double, green: Double, blue: Double, alpha: Double)
+    case link(URL)
+
+    static func detect(_ text: String) -> ClipboardKind {
+        let trimmed = text.trimmingCharacters(in: .whitespacesAndNewlines)
+        let isSingleLine = !trimmed.contains(where: \.isNewline)
+        if isSingleLine, let color = color(trimmed) { return color }
+        if isSingleLine, !trimmed.contains(" "), let url = URL(string: trimmed),
+           ["http", "https"].contains(url.scheme?.lowercased() ?? ""), url.host != nil {
+            return .link(url)
+        }
+        if let first = trimmed.first, first == "{" || first == "[", trimmed.count > 2,
+           (try? JSONSerialization.jsonObject(with: Data(trimmed.utf8))) != nil {
+            return .json
+        }
+        if !isSingleLine, looksLikeCode(trimmed) { return .code }
+        return .text
+    }
+
+    private static func color(_ text: String) -> ClipboardKind? {
+        var hex = text.lowercased()
+        guard hex.hasPrefix("#") else { return nil }
+        hex.removeFirst()
+        guard [3, 6, 8].contains(hex.count), hex.allSatisfy(\.isHexDigit) else { return nil }
+        if hex.count == 3 { hex = hex.map { "\($0)\($0)" }.joined() }
+        if hex.count == 6 { hex += "ff" }
+        guard let value = UInt64(hex, radix: 16) else { return nil }
+        func channel(_ shift: UInt64) -> Double { Double((value >> shift) & 0xff) / 255 }
+        return .color(red: channel(24), green: channel(16), blue: channel(8), alpha: channel(0))
+    }
+
+    private static func looksLikeCode(_ text: String) -> Bool {
+        let markers = ["{", "}", ";", "=>", "->", "func ", "def ", "const ", "let ", "import ", "return ", "</"]
+        let hits = markers.filter { text.contains($0) }.count
+        let indented = text.components(separatedBy: .newlines).contains { $0.hasPrefix("    ") || $0.hasPrefix("\t") }
+        return hits >= 2 || (hits >= 1 && indented)
+    }
 }
 
 /// In-memory history of copied text. Never written to disk.
@@ -85,6 +136,15 @@ final class ClipboardHistory {
     func add(_ text: String) {
         guard record(text) != nil else { return }
         write(text)
+    }
+
+    /// Copies pretty-printed JSON and keeps it in the history.
+    func copyFormattedJSON(_ item: ClipboardItem) {
+        guard let object = try? JSONSerialization.jsonObject(with: Data(item.text.utf8)),
+              let data = try? JSONSerialization.data(withJSONObject: object, options: [.prettyPrinted, .sortedKeys, .withoutEscapingSlashes]),
+              let pretty = String(data: data, encoding: .utf8)
+        else { return }
+        add(pretty)
     }
 
     func togglePin(_ item: ClipboardItem) {

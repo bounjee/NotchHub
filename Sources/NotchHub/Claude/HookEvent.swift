@@ -1,5 +1,11 @@
 import Foundation
 
+/// One rate-limit window from Claude Code's status line data.
+struct UsageWindow: Equatable, Sendable, Codable {
+    var usedPercentage: Double
+    var resetsAt: Date
+}
+
 /// A Claude Code hook payload, reduced to the fields NotchHub uses.
 struct HookEvent: Sendable {
     var name: String
@@ -15,6 +21,15 @@ struct HookEvent: Sendable {
     var errorMessage: String?
     /// `permission_suggestions` re-encoded as JSON, passed back as `updatedPermissions`.
     var permissionSuggestions: Data?
+    /// Sent by `notch-hook --statusline`; carries plan usage instead of a hook event.
+    var isStatusLine = false
+    var fiveHour: UsageWindow?
+    var sevenDay: UsageWindow?
+    /// Claude Code and the processes above it, for jumping to the session's terminal.
+    var ancestors: [ProcessTree.Entry] = []
+
+    /// Events after which the terminal is looked up; tool events skip it to stay cheap.
+    static let locatingEvents: Set<String> = ["SessionStart", "UserPromptSubmit", "PermissionRequest", "Stop", "Notification"]
 
     init(name: String, sessionID: String, cwd: String = "") {
         self.name = name
@@ -46,6 +61,25 @@ struct HookEvent: Sendable {
            JSONSerialization.isValidJSONObject(suggestions) {
             permissionSuggestions = try? JSONSerialization.data(withJSONObject: suggestions)
         }
+
+        // The status line JSON may carry its own `hook_event_name` ("Status").
+        isStatusLine = name == "NotchHubStatusLine" || name == "Status"
+        if let limits = object["rate_limits"] as? [String: Any] {
+            fiveHour = Self.window(limits["five_hour"])
+            sevenDay = Self.window(limits["seven_day"])
+        }
+        if let parent = (object["notchhub_ppid"] as? NSNumber)?.int32Value, parent > 1,
+           isStatusLine || Self.locatingEvents.contains(name) {
+            ancestors = ProcessTree.ancestors(of: parent)
+        }
+    }
+
+    private static func window(_ value: Any?) -> UsageWindow? {
+        guard let object = value as? [String: Any],
+              let used = (object["used_percentage"] as? NSNumber)?.doubleValue,
+              let resets = (object["resets_at"] as? NSNumber)?.doubleValue
+        else { return nil }
+        return UsageWindow(usedPercentage: used, resetsAt: Date(timeIntervalSince1970: resets))
     }
 
     /// Short human-readable description of a tool call, e.g. the Bash command or edited file.

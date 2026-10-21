@@ -13,6 +13,23 @@ struct ClaudeSession: Identifiable, Equatable {
     var lastMessage: String?
     var statusSince = Date()
     var lastEventAt = Date()
+    var terminal: TerminalLocation?
+}
+
+/// Plan usage from Claude Code's status line (Pro/Max only).
+struct UsageLimits: Equatable, Codable {
+    var fiveHour: UsageWindow?
+    var sevenDay: UsageWindow?
+
+    /// Windows whose reset time has passed no longer mean anything.
+    func current(at now: Date = Date()) -> UsageLimits {
+        UsageLimits(
+            fiveHour: fiveHour.flatMap { $0.resetsAt > now ? $0 : nil },
+            sevenDay: sevenDay.flatMap { $0.resetsAt > now ? $0 : nil }
+        )
+    }
+
+    var isEmpty: Bool { fiveHour == nil && sevenDay == nil }
 }
 
 enum PermissionDecision: Sendable {
@@ -46,6 +63,24 @@ final class ClaudeStore {
     private(set) var headlineStatus: SessionStatus?
     /// Whether our hooks are in ~/.claude/settings.json; kept here so views never read the file.
     var hooksInstalled = false
+    private(set) var limits = UsageLimits()
+
+    /// Five-hour usage levels that earn a heads-up, once per window.
+    static let usageWarnings: [Double] = [80, 95]
+    private let limitsURL: URL?
+
+    init(limitsURL: URL? = nil) {
+        self.limitsURL = limitsURL
+        if let limitsURL, let data = try? Data(contentsOf: limitsURL),
+           let saved = try? JSONDecoder().decode(UsageLimits.self, from: data) {
+            limits = saved.current()
+        }
+    }
+
+    static var defaultLimitsURL: URL {
+        FileManager.default.homeDirectoryForCurrentUser
+            .appendingPathComponent("Library/Application Support/NotchHub/usage.json")
+    }
 
     /// Called when the panel should briefly open by itself.
     var onPeek: ((PeekReason) -> Void)?
@@ -70,7 +105,13 @@ final class ClaudeStore {
     }
 
     func handle(_ event: HookEvent, responder: PermissionReplying? = nil, now: Date = Date()) {
+        if event.isStatusLine {
+            updateLimits(event, now: now)
+            locateTerminal(event)
+            return
+        }
         defer { refreshHeadline() }
+        defer { locateTerminal(event) }
         defer { log.notice("hook \(event.name, privacy: .public) pending=\(self.pending.count) status=\(String(describing: self.sessions[event.sessionID]?.status), privacy: .public)") }
         lastEventAt = now
         let sid = event.sessionID
@@ -142,7 +183,7 @@ final class ClaudeStore {
                 $0.currentTool = nil
                 if let message = event.lastAssistantMessage, !message.isEmpty { $0.lastMessage = message }
             }
-            if !event.hasBackgroundTasks { onPeek?(.claudeDone) }
+            if !event.hasBackgroundTasks { onPeek?(.claudeDone(sessions[sid]?.label ?? "Claude")) }
 
         case "StopFailure":
             resolvePending(in: sid, with: .none)
@@ -161,6 +202,41 @@ final class ClaudeStore {
         default:
             break
         }
+    }
+
+    private func updateLimits(_ event: HookEvent, now: Date) {
+        guard event.fiveHour != nil || event.sevenDay != nil else { return }
+        let previous = limits.current(at: now).fiveHour
+        var updated = limits
+        if let window = event.fiveHour { updated.fiveHour = window }
+        if let window = event.sevenDay { updated.sevenDay = window }
+        guard updated != limits else { return }
+        limits = updated
+
+        if let window = updated.fiveHour {
+            // A new window starts from zero, so compare only within the same one.
+            let before = previous?.resetsAt == window.resetsAt ? previous!.usedPercentage : 0
+            if let crossed = Self.usageWarnings.last(where: { before < $0 && window.usedPercentage >= $0 }) {
+                onPeek?(.usage(Int(crossed)))
+            }
+        }
+        if let limitsURL, let data = try? JSONEncoder().encode(updated) {
+            try? FileManager.default.createDirectory(at: limitsURL.deletingLastPathComponent(), withIntermediateDirectories: true)
+            try? data.write(to: limitsURL, options: .atomic)
+        }
+    }
+
+    private func locateTerminal(_ event: HookEvent) {
+        guard !event.ancestors.isEmpty, var session = sessions[event.sessionID], session.terminal == nil,
+              let location = TerminalJump.locate(ancestors: event.ancestors)
+        else { return }
+        session.terminal = location
+        sessions[event.sessionID] = session
+    }
+
+    func jumpToTerminal(_ id: ClaudeSession.ID) {
+        guard let location = sessions[id]?.terminal else { return }
+        TerminalJump.jump(to: location)
     }
 
     /// Answers a pending request from the panel.

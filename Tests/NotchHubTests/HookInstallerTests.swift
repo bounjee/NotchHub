@@ -93,6 +93,21 @@ import Testing
         #expect(backup == original)
     }
 
+    @Test func installsTheStatusLineOnlyWhenThereIsNone() throws {
+        try HookInstaller.install(at: settings, hookPath: hook)
+        let statusLine = try readSettings()["statusLine"] as! [String: Any]
+        #expect(statusLine["command"] as? String == "'\(hook)' --statusline")
+        try HookInstaller.uninstall(at: settings)
+        #expect(try readSettings()["statusLine"] == nil)
+
+        let mine: [String: Any] = ["type": "command", "command": "~/bin/my-status.sh"]
+        try write(["statusLine": mine])
+        try HookInstaller.install(at: settings, hookPath: hook)
+        #expect((try readSettings()["statusLine"] as? [String: Any])?["command"] as? String == "~/bin/my-status.sh")
+        try HookInstaller.uninstall(at: settings)
+        #expect((try readSettings()["statusLine"] as? [String: Any])?["command"] as? String == "~/bin/my-status.sh")
+    }
+
     @Test func pathsWithSpacesAndQuotesAreShellQuoted() {
         #expect(HookInstaller.shellQuoted("/Users/me/My Apps/NotchHub.app/Contents/MacOS/notch-hook")
             == "'/Users/me/My Apps/NotchHub.app/Contents/MacOS/notch-hook'")

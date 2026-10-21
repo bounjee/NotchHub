@@ -17,10 +17,11 @@ enum NotchHubApp {
 
 @MainActor
 final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
-    private let claude = ClaudeStore()
+    private let claude = ClaudeStore(limitsURL: ClaudeStore.defaultLimitsURL)
     private let shelf = Shelf()
     private let clipboard = ClipboardHistory()
     private let battery = BatteryMonitor()
+    private let arrivals = FileArrivals()
     private lazy var model = NotchModel(claude: claude, shelf: shelf, clipboard: clipboard, battery: battery)
     private lazy var windowController = NotchWindowController(model: model)
     private var server: HubServer?
@@ -54,6 +55,12 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
         }
         clipboard.onNewItem = { [weak self] item in self?.peek(.copied(item.text)) }
         claude.hooksInstalled = HookInstaller.isInstalled()
+        arrivals.onArrival = { [weak self] url, kind in
+            guard let self else { return }
+            withAnimation(.snappy) { self.shelf.add([url], source: kind) }
+            self.peek(kind == .screenshot ? .screenshot(url.path) : .downloaded(url.lastPathComponent))
+        }
+        arrivals.start()
 
         let claude = claude
         let server = HubServer(
@@ -72,7 +79,10 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
         }
 
         maintenanceTimer = Timer.scheduledTimer(withTimeInterval: 30, repeats: true) { [weak self] _ in
-            MainActor.assumeIsolated { self?.claude.removeExpiredSessions() }
+            MainActor.assumeIsolated {
+                self?.claude.removeExpiredSessions()
+                self?.shelf.removeExpired()
+            }
         }
     }
 
@@ -131,6 +141,12 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
             showError("Hook ayarı değiştirilemedi", error)
         }
         claude.hooksInstalled = HookInstaller.isInstalled()
+        arrivals.onArrival = { [weak self] url, kind in
+            guard let self else { return }
+            withAnimation(.snappy) { self.shelf.add([url], source: kind) }
+            self.peek(kind == .screenshot ? .screenshot(url.path) : .downloaded(url.lastPathComponent))
+        }
+        arrivals.start()
     }
 
     /// The bundled hook binary, so a build run from outside /Applications still installs a working path.

@@ -4,7 +4,19 @@ import Observation
 struct ShelfItem: Identifiable, Hashable, Codable {
     var id: String { path }
     let path: String
+    /// Set for screenshots and downloads added automatically; those expire after a day.
+    var source: FileArrivals.Kind?
+    var addedAt: Date?
     var url: URL { URL(fileURLWithPath: path) }
+
+    init(path: String, source: FileArrivals.Kind? = nil, addedAt: Date? = Date()) {
+        self.path = path
+        self.source = source
+        self.addedAt = addedAt
+    }
+
+    static func == (lhs: ShelfItem, rhs: ShelfItem) -> Bool { lhs.path == rhs.path }
+    func hash(into hasher: inout Hasher) { hasher.combine(path) }
     var name: String { (path as NSString).lastPathComponent }
 }
 
@@ -34,14 +46,28 @@ final class Shelf: NSObject, NSSharingServiceDelegate {
 
     var selectedItems: [ShelfItem] { items.filter { selection.contains($0.id) } }
 
-    func add(_ urls: [URL]) {
+    static let autoItemLifetime: TimeInterval = 24 * 60 * 60
+
+    func add(_ urls: [URL], source: FileArrivals.Kind? = nil, now: Date = Date()) {
         var seen = Set<String>()
         let new = urls.filter(\.isFileURL)
-            .map { ShelfItem(path: $0.standardizedFileURL.path) }
+            .map { ShelfItem(path: $0.standardizedFileURL.path, source: source, addedAt: now) }
             .filter { seen.insert($0.path).inserted }
         guard !new.isEmpty else { return }
         items.removeAll { item in new.contains(item) }
         items.insert(contentsOf: new, at: 0)
+        save()
+    }
+
+    /// Drops automatically added items after a day; files the user put here stay.
+    func removeExpired(now: Date = Date()) {
+        let kept = items.filter { item in
+            guard item.source != nil, let added = item.addedAt else { return true }
+            return now.timeIntervalSince(added) < Self.autoItemLifetime
+        }
+        guard kept.count != items.count else { return }
+        items = kept
+        selection = selection.filter { id in kept.contains { $0.id == id } }
         save()
     }
 
@@ -113,6 +139,7 @@ final class Shelf: NSObject, NSSharingServiceDelegate {
         else { return }
         items = saved.filter { FileManager.default.fileExists(atPath: $0.path) }
         if items.count != saved.count { save() }
+        removeExpired()
     }
 
     private func save() {

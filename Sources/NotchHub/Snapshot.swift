@@ -45,6 +45,10 @@ enum Snapshot {
               "permission_suggestions": [["type": "addRules", "behavior": "allow", "destination": "localSettings"]]], responder: responder)
         capture("3-closed-permission")
 
+        send(["hook_event_name": "NotchHubStatusLine", "session_id": "a", "rate_limits": [
+            "five_hour": ["used_percentage": 64, "resets_at": Date().addingTimeInterval(2 * 3600 + 840).timeIntervalSince1970],
+            "seven_day": ["used_percentage": 31, "resets_at": Date().addingTimeInterval(4 * 86_400).timeIntervalSince1970],
+        ]])
         model.open(tab: .claude)
         capture("4-open-claude")
 
@@ -59,7 +63,7 @@ enum Snapshot {
         shelf.clear()
         capture("8-open-shelf-empty")
 
-        for text in ["git push origin main", "https://notchy.dev", "func layout() {\n    guard let screen = NotchGeometry.builtInScreen() else { return }\n}", "Merhaba dünya"] {
+        for text in ["git push origin main", "https://notchy.dev/pricing?ref=notch", "func layout() {\n    guard let screen = NotchGeometry.builtInScreen() else { return }\n}", #"{"name":"NotchHub","tabs":3}"#, "#D97757", "Merhaba dünya"] {
             clipboard.record(text)
         }
         model.select(.clipboard)
@@ -81,6 +85,12 @@ enum Snapshot {
         capture("14-compact-low-battery")
         model.showPeek(.charged, hovering: false)
         capture("15-compact-charged")
+        model.showPeek(.claudeDone("dolphydesk"), hovering: false)
+        capture("18-compact-done")
+        model.showPeek(.usage(80), hovering: false)
+        capture("19-compact-usage")
+        model.showPeek(.downloaded("NotchHub-1.2.dmg"), hovering: false)
+        capture("20-compact-download")
 
         model.close()
         model.isHoverPrimed = true

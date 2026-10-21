@@ -70,6 +70,17 @@ private struct ShelfTile: View {
         VStack(spacing: 6) {
             FileThumbnail(path: item.path, size: 52)
                 .scaleEffect(hovering ? 1.06 : 1)
+                .overlay(alignment: .bottomTrailing) {
+                    if let source = item.source {
+                        Image(systemName: source == .screenshot ? "camera.viewfinder" : "arrow.down.circle.fill")
+                            .font(.system(size: 10, weight: .bold))
+                            .foregroundStyle(.white)
+                            .padding(3)
+                            .background(Circle().fill(source == .screenshot ? Color.purple : .blue))
+                            .offset(x: 4, y: 4)
+                            .help(source == .screenshot ? "Ekran görüntüsü · 1 gün sonra raftan düşer" : "İndirilen · 1 gün sonra raftan düşer")
+                    }
+                }
             Text(item.name)
                 .font(.system(size: 10.5))
                 .lineLimit(2)

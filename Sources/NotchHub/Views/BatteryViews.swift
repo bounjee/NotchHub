@@ -50,24 +50,6 @@ struct BatteryBadge: View {
     }
 }
 
-/// Left side of the charger peek.
-struct PowerPeekLeading: View {
-    let battery: BatteryMonitor
-
-    var body: some View {
-        HStack(spacing: 4) {
-            Image(systemName: battery.isPluggedIn ? "bolt.fill" : "powerplug")
-                .font(.system(size: 12, weight: .semibold))
-                .foregroundStyle(battery.isPluggedIn ? .green : .white.opacity(0.7))
-                .symbolEffect(.bounce, value: battery.isPluggedIn)
-            Text(battery.isPluggedIn ? "Şarjda" : "Pilde")
-                .font(.system(size: 11, weight: .medium))
-                .foregroundStyle(.white.opacity(0.85))
-        }
-        .fixedSize()
-    }
-}
-
 /// Right side of the charger peek: percentage with a filling battery.
 struct PowerPeekTrailing: View {
     let battery: BatteryMonitor

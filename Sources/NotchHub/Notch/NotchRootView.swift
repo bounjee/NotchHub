@@ -1,26 +1,58 @@
 import SwiftUI
 import UniformTypeIdentifiers
 
+/// The notch outline. While open, the part inside the menu bar stays as narrow as the
+/// hardware notch (a "neck") and the panel widens only below the menu bar, so app menus
+/// and status items are never covered.
 struct NotchShape: Shape {
     var topRadius: CGFloat
     var bottomRadius: CGFloat
+    /// How much narrower than the body the neck is, on each side.
+    var neckInset: CGFloat = 0
+    var neckHeight: CGFloat = 0
 
-    var animatableData: AnimatablePair<CGFloat, CGFloat> {
-        get { AnimatablePair(topRadius, bottomRadius) }
-        set { topRadius = newValue.first; bottomRadius = newValue.second }
+    var animatableData: AnimatablePair<AnimatablePair<CGFloat, CGFloat>, AnimatablePair<CGFloat, CGFloat>> {
+        get { AnimatablePair(AnimatablePair(topRadius, bottomRadius), AnimatablePair(neckInset, neckHeight)) }
+        set {
+            topRadius = newValue.first.first
+            bottomRadius = newValue.first.second
+            neckInset = newValue.second.first
+            neckHeight = newValue.second.second
+        }
     }
 
     func path(in rect: CGRect) -> Path {
         let top = topRadius, bottom = bottomRadius
+        let inset = max(0, min(neckInset, rect.width / 2 - top - bottom))
+        let neckBottom = rect.minY + min(neckHeight, rect.height - bottom)
+        // Concave curve where the neck meets the body, then a convex shoulder.
+        let flare = min(10, inset / 2, neckHeight / 2)
+        let shoulder = min(16, inset / 2)
+        let hasNeck = inset > 0.5 && neckHeight > 0.5
+
         var path = Path()
-        path.move(to: CGPoint(x: rect.minX, y: rect.minY))
-        path.addQuadCurve(to: CGPoint(x: rect.minX + top, y: rect.minY + top), control: CGPoint(x: rect.minX + top, y: rect.minY))
+        let left = rect.minX + inset
+        path.move(to: CGPoint(x: left, y: rect.minY))
+        path.addQuadCurve(to: CGPoint(x: left + top, y: rect.minY + top), control: CGPoint(x: left + top, y: rect.minY))
+        if hasNeck {
+            path.addLine(to: CGPoint(x: left + top, y: neckBottom - flare))
+            path.addQuadCurve(to: CGPoint(x: left + top - flare, y: neckBottom), control: CGPoint(x: left + top, y: neckBottom))
+            path.addLine(to: CGPoint(x: rect.minX + top + shoulder, y: neckBottom))
+            path.addQuadCurve(to: CGPoint(x: rect.minX + top, y: neckBottom + shoulder), control: CGPoint(x: rect.minX + top, y: neckBottom))
+        }
         path.addLine(to: CGPoint(x: rect.minX + top, y: rect.maxY - bottom))
         path.addQuadCurve(to: CGPoint(x: rect.minX + top + bottom, y: rect.maxY), control: CGPoint(x: rect.minX + top, y: rect.maxY))
         path.addLine(to: CGPoint(x: rect.maxX - top - bottom, y: rect.maxY))
         path.addQuadCurve(to: CGPoint(x: rect.maxX - top, y: rect.maxY - bottom), control: CGPoint(x: rect.maxX - top, y: rect.maxY))
-        path.addLine(to: CGPoint(x: rect.maxX - top, y: rect.minY + top))
-        path.addQuadCurve(to: CGPoint(x: rect.maxX, y: rect.minY), control: CGPoint(x: rect.maxX - top, y: rect.minY))
+        let right = rect.maxX - inset
+        if hasNeck {
+            path.addLine(to: CGPoint(x: rect.maxX - top, y: neckBottom + shoulder))
+            path.addQuadCurve(to: CGPoint(x: rect.maxX - top - shoulder, y: neckBottom), control: CGPoint(x: rect.maxX - top, y: neckBottom))
+            path.addLine(to: CGPoint(x: right - top + flare, y: neckBottom))
+            path.addQuadCurve(to: CGPoint(x: right - top, y: neckBottom - flare), control: CGPoint(x: right - top, y: neckBottom))
+        }
+        path.addLine(to: CGPoint(x: right - top, y: rect.minY + top))
+        path.addQuadCurve(to: CGPoint(x: right, y: rect.minY), control: CGPoint(x: right - top, y: rect.minY))
         path.closeSubpath()
         return path
     }
@@ -29,16 +61,18 @@ struct NotchShape: Shape {
 struct NotchRootView: View {
     let model: NotchModel
 
-    static let openTopRadius: CGFloat = 19
     static let closedTopRadius: CGFloat = 6
     /// How much the closed notch grows while the pointer rests on it.
     static let hoverLift = CGSize(width: 7.5, height: 5)
 
-    /// Width of each side "ear" next to the closed notch.
+    /// Wing widths (top-corner ears included) left and right of the hardware notch while
+    /// closed or compact. The left one stays minimal because app menus reach the notch there.
     @MainActor
-    static func closedWingWidth(_ model: NotchModel) -> CGFloat {
-        let base = model.claude.headlineStatus == nil ? closedTopRadius : 30
-        return base + (model.isHoverPrimed ? hoverLift.width : 0)
+    static func wings(_ model: NotchModel) -> (left: CGFloat, right: CGFloat) {
+        if model.presentation == .compact { return (closedTopRadius, model.compactWingWidth) }
+        let lift = model.isHoverPrimed ? hoverLift.width : 0
+        let right = model.claude.headlineStatus == nil ? closedTopRadius : 42
+        return (closedTopRadius + lift, right + lift)
     }
 
     @MainActor
@@ -53,7 +87,14 @@ struct NotchRootView: View {
     }
 
     private var isOpen: Bool { model.presentation == .open }
-    private var topRadius: CGFloat { isOpen ? Self.openTopRadius : Self.closedTopRadius }
+    /// The small top-corner ears stay the same open or closed: the neck keeps the notch's width.
+    private var topRadius: CGFloat { Self.closedTopRadius }
+
+    /// While open, the neck through the menu bar is exactly as wide as the closed notch.
+    private var neckInset: CGFloat {
+        guard isOpen else { return 0 }
+        return (NotchModel.openWidth - model.notchSize.width) / 2
+    }
     private var bandHeight: CGFloat { max(model.notchSize.height, 28) }
     private var needsAttention: Bool { !isOpen && !model.claude.pending.isEmpty }
 
@@ -61,7 +102,7 @@ struct NotchRootView: View {
         VStack(spacing: 0) {
             header
             if isOpen {
-                CappedHeight(max: NotchModel.maxOpenHeight - bandHeight - 60) {
+                CappedHeight(max: NotchModel.maxOpenHeight - bandHeight - 70) {
                     if let drag = model.drag {
                         DropZones(kind: drag, receiveFiles: receiveFiles, receiveText: receiveText)
                             .transition(.notchBlur)
@@ -81,7 +122,7 @@ struct NotchRootView: View {
         .frame(width: bodyWidth, alignment: .top)
         .padding(.horizontal, topRadius)
         .background(.black)
-        .clipShape(NotchShape(topRadius: topRadius, bottomRadius: isOpen ? 24 : 14))
+        .clipShape(NotchShape(topRadius: topRadius, bottomRadius: isOpen ? 24 : 14, neckInset: neckInset, neckHeight: isOpen ? bandHeight : 0))
         .compositingGroup()
         .shadow(color: shadowColor, radius: isOpen ? 14 : 8, y: isOpen ? 6 : 2)
         .keyframeAnimator(initialValue: 1.0, trigger: model.dropCount) { content, scale in
@@ -93,6 +134,7 @@ struct NotchRootView: View {
         .onGeometryChange(for: CGSize.self, of: \.size) { size in
             if isOpen { model.openSize = size }
         }
+        .offset(x: horizontalShift)
         // Fallback for drops that land on the notch itself rather than a zone.
         .onDrop(of: [.fileURL, .url, .plainText], isTargeted: nil) { providers in
             if providers.contains(where: { $0.hasItemConformingToTypeIdentifier(UTType.fileURL.identifier) }) {
@@ -113,47 +155,59 @@ struct NotchRootView: View {
     }
 
     private var bodyWidth: CGFloat {
-        switch model.presentation {
-        case .open: NotchModel.openWidth
-        case .compact: model.notchSize.width + 2 * (model.compactWingWidth - topRadius)
-        case .closed: model.notchSize.width + 2 * (Self.closedWingWidth(model) - topRadius)
-        }
+        if isOpen { return NotchModel.openWidth }
+        let wings = Self.wings(model)
+        return model.notchSize.width + wings.left + wings.right - 2 * topRadius
+    }
+
+    /// Keeps the hardware notch covered when the wings are uneven.
+    private var horizontalShift: CGFloat {
+        if isOpen { return 0 }
+        let wings = Self.wings(model)
+        return (wings.right - wings.left) / 2
     }
 
     @ViewBuilder
     private var header: some View {
         switch model.presentation {
         case .open:
-            // The menu bar band does not receive clicks, so it only shows status;
-            // the tabs sit just below it.
-            VStack(spacing: 6) {
-                HStack(spacing: 0) {
+            // The menu bar band is the neck: the system draws its menus over anything placed
+            // beside the notch there and keeps the clicks, so everything starts below it.
+            VStack(spacing: 0) {
+                Color.clear.frame(height: bandHeight)
+                HStack(spacing: 8) {
                     ClaudeHeadline(store: model.claude)
-                    Spacer(minLength: model.notchSize.width + 12)
-                    BatteryBadge(battery: model.battery)
+                        .frame(maxWidth: .infinity, alignment: .leading)
+                    if model.drag == nil {
+                        TabBar(model: model)
+                            .fixedSize()
+                            .transition(.notchBlur)
+                    }
+                    HStack(spacing: 12) {
+                        UsageRing(limits: model.claude.limits)
+                        BatteryBadge(battery: model.battery)
+                    }
+                    .frame(maxWidth: .infinity, alignment: .trailing)
                 }
-                .frame(height: bandHeight)
-                if model.drag == nil {
-                    TabBar(model: model)
-                        .transition(.notchBlur)
-                }
+                .frame(height: 30)
+                .padding(.top, 8)
             }
         case .compact:
-            CompactActivity(model: model, wingWidth: model.compactWingWidth - topRadius)
-                .frame(height: model.notchSize.height)
-                .transition(.notchBlur)
-        case .closed:
             HStack(spacing: 0) {
+                Color.clear.frame(width: model.notchSize.width)
+                CompactActivity(model: model)
+                    .frame(width: model.compactWingWidth - topRadius, alignment: .leading)
+            }
+            .frame(height: model.notchSize.height)
+            .transition(.notchBlur)
+        case .closed:
+            let wings = Self.wings(model)
+            HStack(spacing: 0) {
+                Color.clear.frame(width: model.notchSize.width + wings.left - topRadius)
                 if let status = model.claude.headlineStatus {
-                    Image(systemName: "sparkle")
-                        .font(.system(size: 11, weight: .semibold))
-                        .foregroundStyle(Color.claude)
-                        .frame(width: Self.closedWingWidth(model) - topRadius)
-                    Color.clear.frame(width: model.notchSize.width)
-                    StatusIndicator(status: status)
-                        .frame(width: Self.closedWingWidth(model) - topRadius)
-                } else {
-                    Color.clear.frame(width: model.notchSize.width)
+                    ClawdView(status: status, celebration: model.claudeCelebration, pixel: 1.25)
+                        .frame(width: wings.right - topRadius)
+                        .padding(.top, 2)
                 }
             }
             .frame(height: Self.closedHeight(model))
@@ -217,83 +271,78 @@ extension NSItemProvider {
     }
 }
 
-/// Compact content beside the notch for short-lived activities.
+/// Compact content right of the notch for short-lived activities.
 private struct CompactActivity: View {
     let model: NotchModel
-    let wingWidth: CGFloat
 
     var body: some View {
-        HStack(spacing: 0) {
-            leading
-                .frame(width: wingWidth, alignment: .leading)
-                .padding(.leading, 4)
-            Color.clear.frame(width: model.notchSize.width - 8)
-            trailing
-                .frame(width: wingWidth, alignment: .trailing)
-                .padding(.trailing, 4)
+        HStack(spacing: 6) {
+            switch model.peek {
+            case .copied(let text):
+                icon("checkmark.circle.fill", .green)
+                title("Kopyalandı")
+                detail(text)
+            case .claudeDone(let label):
+                icon("checkmark.circle.fill", .green)
+                title(label)
+                detail("bitti")
+            case .screenshot(let path):
+                FileThumbnail(path: path, size: 20)
+                title("Ekran görüntüsü")
+                detail("rafta")
+            case .downloaded(let name):
+                icon("arrow.down.circle.fill", .blue)
+                title(name)
+                detail("rafta")
+            case .charged:
+                icon("bolt.fill", .green)
+                title("Şarj doldu")
+                Spacer(minLength: 4)
+                BatteryBadge(battery: model.battery)
+            case .lowBattery:
+                icon("battery.25percent", .red)
+                title("Pil az")
+                Spacer(minLength: 4)
+                BatteryBadge(battery: model.battery)
+            case .usage(let percent):
+                icon("gauge.with.dots.needle.67percent", percent >= 95 ? .red : .orange)
+                title("Claude limiti %\(percent)")
+                if let window = model.claude.limits.current().fiveHour {
+                    detail(window.resetText())
+                }
+            default:
+                icon(model.battery.isPluggedIn ? "bolt.fill" : "powerplug", model.battery.isPluggedIn ? .green : .white.opacity(0.7))
+                title(model.battery.isPluggedIn ? "Şarjda" : "Pilde")
+                Spacer(minLength: 4)
+                PowerPeekTrailing(battery: model.battery)
+            }
         }
+        .padding(.leading, 6)
+        .padding(.trailing, 10)
         .id(model.peek.map { "\($0)" } ?? "")
     }
 
-    @ViewBuilder
-    private var leading: some View {
-        switch model.peek {
-        case .copied:
-            Label {
-                Text("Kopyalandı").font(.system(size: 11.5, weight: .semibold))
-            } icon: {
-                Image(systemName: "checkmark.circle.fill")
-                    .foregroundStyle(.green)
-                    .symbolEffect(.bounce.down, options: .nonRepeating)
-            }
-            .labelStyle(CompactLabelStyle())
-        case .charged:
-            Label {
-                Text("Doldu").font(.system(size: 11.5, weight: .semibold))
-            } icon: {
-                Image(systemName: "bolt.fill").foregroundStyle(.green)
-            }
-            .labelStyle(CompactLabelStyle())
-        case .lowBattery:
-            Label {
-                Text("Pil az").font(.system(size: 11.5, weight: .semibold))
-            } icon: {
-                Image(systemName: "battery.25percent")
-                    .foregroundStyle(.red)
-                    .symbolEffect(.pulse, options: .repeat(2))
-            }
-            .labelStyle(CompactLabelStyle())
-        default:
-            PowerPeekLeading(battery: model.battery)
-        }
+    private func icon(_ name: String, _ color: Color) -> some View {
+        Image(systemName: name)
+            .font(.system(size: 12, weight: .semibold))
+            .foregroundStyle(color)
+            .symbolEffect(.bounce.down, options: .nonRepeating)
     }
 
-    @ViewBuilder
-    private var trailing: some View {
-        switch model.peek {
-        case .copied(let text):
-            Text(text.trimmingCharacters(in: .whitespacesAndNewlines).replacingOccurrences(of: "\n", with: " "))
-                .font(.system(size: 11))
-                .foregroundStyle(.white.opacity(0.6))
-                .lineLimit(1)
-                .truncationMode(.tail)
-        case .lowBattery:
-            Text("\(model.battery.percent)%")
-                .font(.system(size: 11.5, weight: .semibold).monospacedDigit())
-                .foregroundStyle(.red)
-        default:
-            PowerPeekTrailing(battery: model.battery)
-        }
+    private func title(_ text: String) -> some View {
+        Text(text)
+            .font(.system(size: 11.5, weight: .semibold))
+            .foregroundStyle(.white.opacity(0.92))
+            .lineLimit(1)
+            .truncationMode(.middle)
+            .layoutPriority(1)
     }
-}
 
-private struct CompactLabelStyle: LabelStyle {
-    func makeBody(configuration: Configuration) -> some View {
-        HStack(spacing: 5) {
-            configuration.icon.font(.system(size: 12, weight: .semibold))
-            configuration.title.foregroundStyle(.white.opacity(0.9))
-        }
-        .fixedSize()
+    private func detail(_ text: String) -> some View {
+        Text(text.trimmingCharacters(in: .whitespacesAndNewlines).replacingOccurrences(of: "\n", with: " "))
+            .font(.system(size: 11))
+            .foregroundStyle(.white.opacity(0.55))
+            .lineLimit(1)
     }
 }
 
@@ -393,18 +442,19 @@ private struct ClaudeHeadline: View {
     var body: some View {
         if let session = store.sortedSessions.first(where: { $0.status == store.headlineStatus }) {
             HStack(spacing: 7) {
-                StatusIndicator(status: session.status)
+                ClawdView(status: session.status, pixel: 0.95)
                 Text(session.label)
                     .font(.system(size: 12, weight: .semibold))
                     .foregroundStyle(.white.opacity(0.85))
                     .lineLimit(1)
+                    .truncationMode(.tail)
                 Text(session.status.title)
                     .font(.system(size: 12))
                     .foregroundStyle(session.status.tint)
                     .lineLimit(1)
+                    .fixedSize()
                     .contentTransition(.opacity)
             }
-            .fixedSize()
             .animation(.smooth, value: session.status)
         }
     }
@@ -421,7 +471,11 @@ private struct TabBar: View {
                     withAnimation(.snappy(duration: 0.28)) { model.select(tab) }
                 } label: {
                     HStack(spacing: 4) {
-                        Image(systemName: tab.symbol).font(.system(size: 10, weight: .semibold))
+                        if tab == .claude {
+                            Text("✻").font(.system(size: 12, weight: .bold)).foregroundStyle(Color.claude)
+                        } else {
+                            Image(systemName: tab.symbol).font(.system(size: 10, weight: .semibold))
+                        }
                         Text(tab.title).font(.system(size: 12, weight: .medium))
                         if let badge = badge(for: tab) {
                             Text(badge)

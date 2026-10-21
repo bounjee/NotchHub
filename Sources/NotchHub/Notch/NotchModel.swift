@@ -22,33 +22,38 @@ enum NotchTab: String, CaseIterable, Identifiable {
     }
 }
 
-/// Something that briefly shows itself without the pointer.
-/// Claude events open the panel; the rest are compact "activities" beside the notch.
+/// Something that briefly shows itself without the pointer. A permission request opens
+/// the panel (it needs an answer); everything else is a compact activity right of the notch.
 enum PeekReason: Equatable {
-    case permission, claudeDone
+    case permission
+    case claudeDone(String)
     case power, charged, lowBattery
     case copied(String)
+    case screenshot(String)
+    case downloaded(String)
+    /// Five-hour plan usage reached this percentage.
+    case usage(Int)
 
-    var opensPanel: Bool {
-        switch self {
-        case .permission, .claudeDone: true
-        default: false
-        }
-    }
+    var opensPanel: Bool { self == .permission }
 
     var duration: Duration {
         switch self {
         case .copied: .milliseconds(1600)
-        case .power, .charged: .seconds(3)
-        case .lowBattery, .permission, .claudeDone: .seconds(4)
+        case .power, .charged, .claudeDone: .seconds(3)
+        case .screenshot, .downloaded: .milliseconds(3500)
+        case .lowBattery, .permission, .usage: .seconds(4)
         }
     }
 
-    /// Width of each side wing of the compact activity.
+    /// Width of the activity's wing right of the notch. Nothing goes on the left:
+    /// app menus reach the notch there.
     var wingWidth: CGFloat {
         switch self {
-        case .copied: 112
-        default: 78
+        case .copied, .claudeDone, .downloaded: 190
+        case .screenshot: 200
+        case .power, .lowBattery, .charged: 150
+        case .usage: 170
+        case .permission: 30
         }
     }
 }
@@ -79,11 +84,13 @@ final class NotchModel {
     /// A drag with files or text is near the notch; the panel shows drop zones.
     var drag: DragKind?
     private(set) var peek: PeekReason?
+    /// Bumped when a Claude session finishes; the mascot hops in place instead of a banner.
+    private(set) var claudeCelebration = 0
     /// Bumped when something lands on the notch, drives a small bounce.
     private(set) var dropCount = 0
 
     static let openWidth: CGFloat = 640
-    static let maxOpenHeight: CGFloat = 380
+    static let maxOpenHeight: CGFloat = 410
 
     private var peekTask: Task<Void, Never>?
 
@@ -101,7 +108,7 @@ final class NotchModel {
     var isPinnedOpen: Bool { shelf.isSharing || drag != nil }
 
     /// Wing width of the current compact activity.
-    var compactWingWidth: CGFloat { peek?.wingWidth ?? 78 }
+    var compactWingWidth: CGFloat { peek?.wingWidth ?? 150 }
 
     func select(_ tab: NotchTab) {
         self.tab = tab
@@ -127,6 +134,10 @@ final class NotchModel {
     /// Shows a peek for a few seconds. Never interrupts a panel the user opened,
     /// and a compact activity never replaces an open Claude peek.
     func showPeek(_ reason: PeekReason, hovering: Bool) {
+        if case .claudeDone = reason {
+            claudeCelebration += 1
+            return
+        }
         guard !hovering, drag == nil else { return }
         if presentation == .open && peek == nil { return }
         if let current = peek, current.opensPanel, !reason.opensPanel { return }

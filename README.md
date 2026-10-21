@@ -2,10 +2,11 @@
 
 MacBook çentiğini Dynamic Island benzeri bir panele çeviren kişisel macOS uygulaması (macOS 15+, Swift 6).
 
-- **Claude:** Claude Code oturum durumu, bitince son cevap, izin isteklerini çentikten onaylama (İzin ver / Her zaman / Reddet). İzin beklerken kapalı çentik turuncu parlar.
+- **Claude:** Claude Code oturum durumu, Claude Code'un piksel maskotuyla: çalışırken yürür, izin isterken kollarını kaldırır, bitince zıplar. Bitince kısa önizleme + "Tamamını göster", izin isteklerini çentikten onaylama (İzin ver / Her zaman / Reddet), oturumun terminal sekmesine atlama (Terminal ve iTerm'de doğru sekme), 5 saatlik ve haftalık plan kullanımı (statusLine üzerinden).
 - **Sürükle-bırak:** Dosya çentiğe yaklaşınca panel iki bölgeyle açılır: *Rafa ekle* ve *AirDrop*. Metin ya da bağlantı sürüklenirse *Panoya kaydet*.
+- **Otomatik raf:** Yeni ekran görüntüleri ve bitmiş indirmeler rafa düşer, 1 gün sonra kendiliğinden kalkar.
 - **Raf:** Sadece yollar saklanır. Resim/PDF/video için QuickLook önizlemesi, çift tıkla aç, dışarı sürükle, AirDrop, Finder'da göster.
-- **Pano:** Son 20 metin + sabitlenenler, sadece bellekte. Başka uygulamada kopyalayınca çentikte "Kopyalandı" görünür. Şifre yöneticisi öğeleri ve Finder dosya kopyaları kaydedilmez.
+- **Pano:** Son 20 metin + sabitlenenler, sadece bellekte. Renk kodu, bağlantı, JSON ve kod için akıllı önizleme. Başka uygulamada kopyalayınca çentikte "Kopyalandı" görünür. Şifre yöneticisi öğeleri ve Finder dosya kopyaları kaydedilmez.
 - **Pil:** Şarja takınca/çıkarınca, %20'nin altına inince ve dolunca çentikte kısa gösterim.
 
 ## Derleme ve kurulum
@@ -44,6 +45,8 @@ Tasarım incelemesi için her durumu örnek verilerle PNG'ye çizer:
 - macOS Unix socket'leri bekleme kuyruğu dolunca bağlantıyı reddeder; `notch-hook` bu yüzden ~100 ms kısa süre yeniden dener (paralel araç çağrılarında olay kaybolmasın).
 - İkinci bir örnek açılırsa (girişte başlat + elle açma) kendini kapatır.
 
-- Menü çubuğu bandına (çentik yüksekliği) gelen tıklamalar pencereye ulaşmıyor, bu yüzden bant sadece gösterge (Claude durumu, pil); sekmeler bandın altında.
+- macOS menü çubuğu bandını her pencerenin üstüne çizer ve oradaki tıklamaları kendisi alır. Bu yüzden açık panel bantta sadece çentik genişliğinde bir "boyun" olarak durur, altında genişler; kapalı/compact içerik de sadece çentiğin sağında. Menüler hiç örtülmez.
+- Hover ile açılma 1 sn bekler (menü çubuğuna giderken yanlışlıkla açılmasın); beklerken çentik hafifçe büyür.
+- Kullanım limiti için hook kurulumu `statusLine`'ı da ekler (sadece kullanıcının kendi statusLine'ı yoksa); terminale hiçbir şey yazmaz.
 - `claude -p` Stop'tan hemen sonra SessionEnd gönderir; `done` oturumlar bu yüzden SessionEnd ile silinmez, 10 dk sonra düşer. 30 dk olay gelmeyen oturumlar (kapatılmış terminal) da düşer.
 - Ad-hoc imzalı olduğu için her yeniden derlemede macOS gizlilik izinleri (pano) yeniden sorulabilir.

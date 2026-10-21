@@ -41,7 +41,9 @@ final class NotchWindowController {
     private var lastHaptic = Date.distantPast
     private var screen: NSScreen?
 
-    static let openDelay: Duration = .milliseconds(150)
+    /// Long enough that passing over the notch on the way to the menu bar does not open it;
+    /// the notch grows a little meanwhile, so the wait does not feel unresponsive.
+    static let openDelay: Duration = .milliseconds(1000)
     static let closeDelay: Duration = .milliseconds(300)
     /// Room around the open panel for the shadow.
     static let shadowPadding: CGFloat = 24
@@ -150,12 +152,18 @@ final class NotchWindowController {
     /// The area that currently reacts to the pointer, in screen coordinates.
     private func interactiveScreenRect() -> NSRect {
         guard let screen else { return .zero }
-        let size: CGSize = switch model.presentation {
-        case .open: model.openSize
-        case .compact: CGSize(width: model.notchSize.width + 2 * model.compactWingWidth, height: model.notchSize.height)
-        case .closed: CGSize(width: model.notchSize.width + 2 * NotchRootView.closedWingWidth(model), height: NotchRootView.closedHeight(model))
+        if model.presentation == .open {
+            let size = model.openSize
+            return NSRect(x: screen.frame.midX - size.width / 2, y: screen.frame.maxY - size.height, width: size.width, height: size.height)
         }
-        return NSRect(x: screen.frame.midX - size.width / 2, y: screen.frame.maxY - size.height, width: size.width, height: size.height)
+        let wings = NotchRootView.wings(model)
+        let height = model.presentation == .closed ? NotchRootView.closedHeight(model) : model.notchSize.height
+        return NSRect(
+            x: screen.frame.midX - model.notchSize.width / 2 - wings.left,
+            y: screen.frame.maxY - height,
+            width: model.notchSize.width + wings.left + wings.right,
+            height: height
+        )
     }
 
     private func interactiveRectInView() -> NSRect {

@@ -1,5 +1,7 @@
 // notch-hook: Claude Code command hook. Forwards the hook's stdin JSON to NotchHub
 // over a Unix socket and, for PermissionRequest, waits for the user's decision.
+// With --statusline it runs as Claude Code's status line command and forwards that
+// JSON (it carries the plan's rate limits) without printing anything.
 // Always exits 0. Writes nothing to stdout except the PermissionRequest decision.
 import Foundation
 
@@ -9,13 +11,21 @@ let socketPath = ProcessInfo.processInfo.environment["NOTCHHUB_SOCKET"]
     ?? FileManager.default.homeDirectoryForCurrentUser
         .appendingPathComponent("Library/Application Support/NotchHub/hub.sock").path
 
+let isStatusLine = CommandLine.arguments.contains("--statusline")
 let input = FileHandle.standardInput.readDataToEndOfFile()
-guard let event = try? JSONSerialization.jsonObject(with: input) as? [String: Any] else { exit(0) }
-let isPermissionRequest = (event["hook_event_name"] as? String) == "PermissionRequest"
+guard let event = try? JSONSerialization.jsonObject(with: input) as? [String: Any], !event.isEmpty else { exit(0) }
+let isPermissionRequest = !isStatusLine && (event["hook_event_name"] as? String) == "PermissionRequest"
 
 // Raw newlines can only be JSON whitespace (inside strings they are escaped),
 // so replacing them keeps the payload unchanged while making it a single line.
 var line = Data(input.map { $0 == 0x0A || $0 == 0x0D ? 0x20 : $0 })
+// Add our own fields right after the opening brace; the rest stays byte for byte.
+// The parent process (Claude Code) lets NotchHub find the terminal the session runs in.
+if let brace = line.firstIndex(of: UInt8(ascii: "{")) {
+    var extra = #""notchhub_ppid":\#(getppid()),"#
+    if isStatusLine { extra += #""hook_event_name":"NotchHubStatusLine","# }
+    line.insert(contentsOf: Data(extra.utf8), at: line.index(after: brace))
+}
 line.append(0x0A)
 
 let fd = socket(AF_UNIX, SOCK_STREAM, 0)

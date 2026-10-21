@@ -53,12 +53,30 @@ private func makeModel() -> NotchModel {
         #expect(model.presentation == .closed)
     }
 
+    @Test func claudeFinishingOnlyMakesTheMascotHop() {
+        let model = makeModel()
+        model.showPeek(.claudeDone("dolphydesk"), hovering: false)
+        #expect(model.presentation == .closed)
+        #expect(model.claudeCelebration == 1)
+    }
+
+    @Test func closedContentStaysRightOfTheNotch() {
+        let model = makeModel()
+        #expect(NotchRootView.wings(model) == (NotchRootView.closedTopRadius, NotchRootView.closedTopRadius))
+        model.claude.handle(hook("UserPromptSubmit"))
+        let busy = NotchRootView.wings(model)
+        #expect(busy.left == NotchRootView.closedTopRadius)
+        #expect(busy.right > busy.left)
+        model.showPeek(.copied("x"), hovering: false)
+        #expect(NotchRootView.wings(model).left == NotchRootView.closedTopRadius)
+    }
+
     @Test func compactActivityDoesNotReplaceAClaudePeek() {
         let model = makeModel()
-        model.showPeek(.claudeDone, hovering: false)
+        model.showPeek(.permission, hovering: false)
         model.showPeek(.copied("x"), hovering: false)
         #expect(model.presentation == .open)
-        #expect(model.peek == .claudeDone)
+        #expect(model.peek == .permission)
     }
 
     @Test func claudePeekReplacesACompactActivity() {
@@ -79,7 +97,7 @@ private func makeModel() -> NotchModel {
 
     @Test func hoverDuringPeekKeepsItOpen() async throws {
         let model = makeModel()
-        model.showPeek(.claudeDone, hovering: false)
+        model.showPeek(.permission, hovering: false)
         model.adoptPeekAsHover()
         try await Task.sleep(for: .milliseconds(4300))
         #expect(model.presentation == .open)
@@ -279,7 +297,7 @@ private func makeModel() -> NotchModel {
         store.handle(hook("Stop", ["background_tasks": [["id": "b"]]]))
         #expect(peeks.isEmpty)
         store.handle(hook("Stop", ["background_tasks": []]))
-        #expect(peeks == [.claudeDone])
+        #expect(peeks == [.claudeDone("project")])
     }
 
     @Test func dismissingASessionReleasesItsHook() {

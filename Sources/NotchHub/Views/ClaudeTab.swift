@@ -7,18 +7,30 @@ struct ClaudeTab: View {
 
     var body: some View {
         if store.sessions.isEmpty && store.pending.isEmpty {
-            EmptyState(
-                symbol: "sparkle",
-                title: "Aktif Claude Code oturumu yok",
-                detail: store.hooksInstalled ? "Bir terminalde claude çalıştır, durumu burada görünür." : "Menü çubuğundaki NotchHub menüsünden hook'ları kur."
-            )
+            VStack(spacing: 8) {
+                UsageSummary(limits: store.limits)
+                HStack(spacing: 14) {
+                    ClawdView(status: .idle, pixel: 2.2)
+                    VStack(alignment: .leading, spacing: 2) {
+                        Text("Aktif Claude Code oturumu yok").font(.system(size: 13, weight: .medium))
+                        Text(store.hooksInstalled ? "Bir terminalde claude çalıştır, durumu burada görünür." : "Menü çubuğundaki NotchHub menüsünden hook'ları kur.")
+                            .font(.system(size: 11))
+                            .foregroundStyle(.secondary)
+                    }
+                    Spacer()
+                }
+                .padding(14)
+                .background(RoundedRectangle(cornerRadius: 12, style: .continuous).fill(Color.cardFill))
+            }
         } else {
             AutoScroll {
                 VStack(spacing: 8) {
+                    UsageSummary(limits: store.limits)
                     ForEach(store.pending) { request in
                         PermissionCard(
                             request: request,
                             sessionLabel: store.sessions[request.sessionID]?.label ?? "Claude",
+                            jump: store.sessions[request.sessionID]?.terminal == nil ? nil : { store.jumpToTerminal(request.sessionID) },
                             answer: { decision in withAnimation(.snappy) { store.answer(request.id, decision) } }
                         )
                         .transition(.move(edge: .top).combined(with: .opacity))
@@ -28,6 +40,7 @@ struct ClaudeTab: View {
                             session: session,
                             isExpanded: expanded == session.id || (expanded == nil && session.id == defaultExpanded),
                             toggle: { withAnimation(.snappy) { expanded = expanded == session.id ? "" : session.id } },
+                            jump: session.terminal == nil ? nil : { store.jumpToTerminal(session.id) },
                             dismiss: { withAnimation(.snappy) { store.dismiss(session.id) } }
                         )
                     }
@@ -45,14 +58,13 @@ struct ClaudeTab: View {
 private struct PermissionCard: View {
     let request: PendingPermission
     let sessionLabel: String
+    let jump: (() -> Void)?
     let answer: (PermissionDecision) -> Void
 
     var body: some View {
         VStack(alignment: .leading, spacing: 8) {
             HStack(spacing: 6) {
-                Image(systemName: "hand.raised.fill")
-                    .foregroundStyle(Color.claude)
-                    .symbolEffect(.pulse, options: .repeating)
+                ClawdView(status: .needsApproval, pixel: 1)
                 Text("İzin gerekiyor").fontWeight(.semibold)
                 Text("· \(sessionLabel)").foregroundStyle(.secondary)
                 Spacer()
@@ -76,9 +88,18 @@ private struct PermissionCard: View {
             }
 
             HStack(spacing: 8) {
-                Text("Terminalden de cevaplayabilirsin")
-                    .font(.system(size: 11))
-                    .foregroundStyle(.tertiary)
+                if let jump {
+                    Button(action: jump) {
+                        Label("Terminalde cevapla", systemImage: "arrow.up.forward.app")
+                    }
+                    .buttonStyle(.plain)
+                    .font(.system(size: 11, weight: .medium))
+                    .foregroundStyle(.secondary)
+                } else {
+                    Text("Terminalden de cevaplayabilirsin")
+                        .font(.system(size: 11))
+                        .foregroundStyle(.tertiary)
+                }
                 Spacer()
                 Button("Reddet") { answer(.deny) }
                     .buttonStyle(PillButtonStyle(kind: .secondary))
@@ -104,13 +125,20 @@ private struct SessionRow: View {
     let session: ClaudeSession
     let isExpanded: Bool
     let toggle: () -> Void
+    let jump: (() -> Void)?
     let dismiss: () -> Void
     @State private var copied = false
     @State private var hovering = false
+    /// The answer starts as a short preview; the full text is one click away.
+    @State private var showsFullMessage = false
+
+    /// Claude is waiting on the user, so the way to its terminal stays visible.
+    private var needsYou: Bool { session.status == .waitingForUser || session.status == .needsApproval }
 
     var body: some View {
         VStack(alignment: .leading, spacing: 8) {
-            Button(action: toggle) {
+            // Buttons must not sit inside another button: the outer one swallows their clicks.
+            HStack(spacing: 10) {
                 HStack(spacing: 10) {
                     StatusIndicator(status: session.status)
                         .frame(width: 16)
@@ -132,32 +160,57 @@ private struct SessionRow: View {
                             .font(.system(size: 11).monospacedDigit())
                             .foregroundStyle(.tertiary)
                     }
-                    if hovering && (session.status == .done || session.status == .error) {
-                        Button(action: dismiss) {
-                            Image(systemName: "xmark").font(.system(size: 9, weight: .bold))
-                        }
-                        .buttonStyle(.plain)
-                        .foregroundStyle(.secondary)
-                        .help("Listeden kaldır")
-                    }
                 }
                 .contentShape(Rectangle())
+                .onTapGesture(perform: toggle)
+
+                if let jump, hovering || needsYou {
+                    Button(action: jump) {
+                        Image(systemName: "arrow.up.forward.app")
+                            .font(.system(size: 12, weight: .semibold))
+                            .frame(width: 22, height: 22)
+                            .contentShape(Rectangle())
+                    }
+                    .buttonStyle(.plain)
+                    .foregroundStyle(needsYou ? AnyShapeStyle(session.status.tint) : AnyShapeStyle(.secondary))
+                    .help("Terminale git")
+                    .transition(.opacity)
+                }
+                if hovering && (session.status == .done || session.status == .error) {
+                    Button(action: dismiss) {
+                        Image(systemName: "xmark")
+                            .font(.system(size: 9, weight: .bold))
+                            .frame(width: 18, height: 22)
+                            .contentShape(Rectangle())
+                    }
+                    .buttonStyle(.plain)
+                    .foregroundStyle(.secondary)
+                    .help("Listeden kaldır")
+                }
             }
-            .buttonStyle(.plain)
 
             if isExpanded, let message = session.lastMessage {
                 VStack(alignment: .leading, spacing: 6) {
-                    AutoScroll(maxHeight: 150) {
-                        Text(Self.markdown(message))
-                            .font(.system(size: 12.5))
-                            .foregroundStyle(.white.opacity(0.88))
-                            .lineSpacing(2)
-                            .textSelection(.enabled)
-                            .frame(maxWidth: .infinity, alignment: .leading)
-                            .fixedSize(horizontal: false, vertical: true)
+                    if showsFullMessage {
+                        AutoScroll(maxHeight: 170) { messageText(message) }
+                    } else {
+                        messageText(Self.preview(message))
+                            .lineLimit(3)
                     }
-                    HStack {
+                    HStack(spacing: 8) {
+                        if Self.preview(message) != message || message.count > 220 {
+                            Button(showsFullMessage ? "Daralt" : "Tamamını göster") {
+                                withAnimation(.snappy) { showsFullMessage.toggle() }
+                            }
+                            .buttonStyle(.plain)
+                            .font(.system(size: 11, weight: .medium))
+                            .foregroundStyle(Color.accentColor)
+                        }
                         Spacer()
+                        if let jump {
+                            Button(action: jump) { Label("Terminale git", systemImage: "arrow.up.forward.app") }
+                                .buttonStyle(PillButtonStyle(kind: .secondary))
+                        }
                         Button {
                             NSPasteboard.general.clearContents()
                             NSPasteboard.general.setString(message, forType: .string)
@@ -176,6 +229,25 @@ private struct SessionRow: View {
         .padding(10)
         .background(RoundedRectangle(cornerRadius: 12, style: .continuous).fill(Color.cardFill))
         .onHover { hovering = $0 }
+    }
+
+    private func messageText(_ text: String) -> some View {
+        Text(Self.markdown(text))
+            .font(.system(size: 12.5))
+            .foregroundStyle(.white.opacity(0.88))
+            .lineSpacing(2)
+            .textSelection(.enabled)
+            .frame(maxWidth: .infinity, alignment: .leading)
+            .fixedSize(horizontal: false, vertical: true)
+    }
+
+    /// The first paragraph, without blank lines, headings markers or code fences.
+    static func preview(_ text: String) -> String {
+        let lines = text.components(separatedBy: .newlines)
+            .map { $0.trimmingCharacters(in: .whitespaces) }
+            .filter { !$0.isEmpty && !$0.hasPrefix("```") }
+            .map { $0.replacingOccurrences(of: #"^#+\s*"#, with: "", options: .regularExpression) }
+        return lines.prefix(3).joined(separator: "\n")
     }
 
     static func markdown(_ text: String) -> AttributedString {

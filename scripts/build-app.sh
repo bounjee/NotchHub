@@ -28,6 +28,9 @@ cat > "$APP/Contents/Info.plist" <<PLIST
     <key>LSUIElement</key><true/>
     <key>NSHighResolutionCapable</key><true/>
     <key>CFBundleDevelopmentRegion</key><string>tr</string>
+    <key>NSAppleEventsUsageDescription</key><string>Claude Code oturumunun çalıştığı terminal sekmesini öne getirmek için.</string>
+    <key>NSDownloadsFolderUsageDescription</key><string>Yeni indirilen dosyaları rafa eklemek için.</string>
+    <key>NSDesktopFolderUsageDescription</key><string>Yeni ekran görüntülerini rafa eklemek için.</string>
 </dict>
 </plist>
 PLIST

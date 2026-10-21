@@ -136,6 +136,29 @@ import Testing
         #expect(Date().timeIntervalSince(start) < 0.5)
     }
 
+    @Test func statusLineModeForwardsUsageAndPrintsNothing() throws {
+        let received = EventBox()
+        let server = HubServer(path: socketPath, onEvent: { event, _ in received.set(event) }, onClose: { _ in })
+        try server.start()
+        let process = Process()
+        process.executableURL = Self.binary
+        process.arguments = ["--statusline"]
+        process.environment = ["NOTCHHUB_SOCKET": socketPath]
+        let stdin = Pipe(), stdout = Pipe()
+        process.standardInput = stdin
+        process.standardOutput = stdout
+        try process.run()
+        stdin.fileHandleForWriting.write(Data(#"{"hook_event_name":"Status","session_id":"s","rate_limits":{"five_hour":{"used_percentage":23.5,"resets_at":1999999999}}}"#.utf8))
+        try stdin.fileHandleForWriting.close()
+        process.waitUntilExit()
+        #expect(process.terminationStatus == 0)
+        #expect(stdout.fileHandleForReading.readDataToEndOfFile().isEmpty)
+        try waitUntil { received.get() != nil }
+        #expect(received.get()?.isStatusLine == true)
+        #expect(received.get()?.fiveHour?.usedPercentage == 23.5)
+        #expect(received.get()?.ancestors.isEmpty == false)
+    }
+
     @Test func emptyInputExitsQuietly() throws {
         _ = try startServer { _ in nil }
         let result = try runHook("")
@@ -148,6 +171,13 @@ import Testing
         while !condition() && Date() < deadline { Thread.sleep(forTimeInterval: 0.02) }
         #expect(condition())
     }
+}
+
+final class EventBox: @unchecked Sendable {
+    private let lock = NSLock()
+    private var event: HookEvent?
+    func set(_ value: HookEvent) { lock.withLock { event = value } }
+    func get() -> HookEvent? { lock.withLock { event } }
 }
 
 final class EventLog: @unchecked Sendable {
