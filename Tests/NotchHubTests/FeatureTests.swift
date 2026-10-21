@@ -234,3 +234,17 @@ private func statusLine(five: Double?, resets: Date, week: Double? = nil) -> Hoo
         #expect(store.headlessSessions.isEmpty)
     }
 }
+
+@MainActor @Suite struct LateTerminalTests {
+    @Test func aToolEventFindsTheTerminalWhenNothingElseDid() {
+        let store = ClaudeStore()
+        // The test runner's own parent chain stands in for Claude Code's.
+        let json = #"{"notchhub_ppid":\#(getpid()),"hook_event_name":"PreToolUse","session_id":"late","tool_name":"Bash","tool_input":{"command":"ls"},"tool_use_id":"1"}"#
+        let event = HookEvent(json: Data(json.utf8))!
+        #expect(event.ancestors.isEmpty)
+        #expect(event.parentPID == getpid())
+        store.handle(event)
+        let expected = TerminalJump.locate(ancestors: ProcessTree.ancestors(of: getpid()), cwd: nil)
+        #expect(store.sessions["late"]?.terminal?.appPID == expected?.appPID)
+    }
+}

@@ -6,10 +6,12 @@ enum PetBrain {
     /// Seconds without a touch before it dozes off.
     static let sleepAfter: TimeInterval = 45
 
-    /// Where a double click takes you: the most urgent session whose terminal is known.
-    /// `sessions` comes most urgent first, as `ClaudeStore.sortedSessions` lists them.
+    /// Where a double click takes you: a session waiting on you, else the one used last.
+    /// Only sessions whose terminal is known count. `sessions` comes most urgent first.
     static func sessionToOpen(_ sessions: [ClaudeSession]) -> ClaudeSession? {
-        sessions.first { $0.terminal != nil }
+        let reachable = sessions.filter { $0.terminal != nil }
+        return reachable.first { $0.status == .needsApproval || $0.status == .waitingForUser }
+            ?? reachable.max { $0.lastEventAt < $1.lastEventAt }
     }
 
     /// The things worth knowing, shown one per click: Claude, plan usage, the latest finish.

@@ -109,6 +109,15 @@ import Testing
         // Sorted most urgent first; the asking one has no known terminal, so it is skipped.
         #expect(PetBrain.sessionToOpen([asking, waiting, done])?.id == "c")
         #expect(PetBrain.sessionToOpen([asking]) == nil)
+
+        // Nothing waiting: the session used last, not the one that started first.
+        var older = ClaudeSession(id: "d", label: "old", terminal: terminal)
+        older.status = .working
+        older.lastEventAt = Date().addingTimeInterval(-300)
+        var active = ClaudeSession(id: "e", label: "active", terminal: terminal)
+        active.status = .working
+        active.lastEventAt = Date()
+        #expect(PetBrain.sessionToOpen([older, active, done])?.id == "e")
         #expect(PetBrain.sessionToOpen([]) == nil)
     }
 }

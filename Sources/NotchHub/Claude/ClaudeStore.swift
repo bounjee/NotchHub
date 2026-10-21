@@ -353,9 +353,10 @@ final class ClaudeStore {
     }
 
     private func locateTerminal(_ event: HookEvent) {
-        guard !event.ancestors.isEmpty, var session = sessions[event.sessionID], session.terminal == nil,
-              let location = TerminalJump.locate(ancestors: event.ancestors, cwd: event.cwd)
-        else { return }
+        guard var session = sessions[event.sessionID], session.terminal == nil else { return }
+        // Tool events skip the process walk to stay cheap; do it once here if still unknown.
+        let ancestors = event.ancestors.isEmpty ? event.parentPID.map { ProcessTree.ancestors(of: $0) } ?? [] : event.ancestors
+        guard !ancestors.isEmpty, let location = TerminalJump.locate(ancestors: ancestors, cwd: event.cwd) else { return }
         session.terminal = location
         sessions[event.sessionID] = session
     }

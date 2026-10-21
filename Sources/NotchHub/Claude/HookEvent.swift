@@ -32,6 +32,9 @@ struct HookEvent: Sendable {
     var sevenDay: UsageWindow?
     /// Claude Code and the processes above it, for jumping to the session's terminal.
     var ancestors: [ProcessTree.Entry] = []
+    /// Claude Code's process, sent with every event; used to find a session's terminal
+    /// when none of the locating events has been seen (NotchHub restarted mid-session).
+    var parentPID: pid_t?
     /// From `claude -p` (scripts, other apps): not a conversation, so not shown.
     var isHeadless = false
 
@@ -81,8 +84,8 @@ struct HookEvent: Sendable {
             fiveHour = Self.window(limits["five_hour"])
             sevenDay = Self.window(limits["seven_day"])
         }
-        if let parent = (object["notchhub_ppid"] as? NSNumber)?.int32Value, parent > 1,
-           isStatusLine || Self.locatingEvents.contains(name) {
+        if let parent = (object["notchhub_ppid"] as? NSNumber)?.int32Value, parent > 1 { parentPID = parent }
+        if let parent = parentPID, isStatusLine || Self.locatingEvents.contains(name) {
             ancestors = ProcessTree.ancestors(of: parent)
             isHeadless = !isStatusLine && ProcessTree.isHeadlessClaude(ancestors)
         }
