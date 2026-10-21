@@ -219,4 +219,18 @@ private func statusLine(five: Double?, resets: Date, week: Double? = nil) -> Hoo
         #expect(responder.replies == [#"{"decision":"none"}"#])
         #expect(store.indicator == nil)
     }
+
+    @MainActor @Test func headlessBookkeepingIsDroppedOnEndOrExpiry() {
+        let store = ClaudeStore()
+        let now = Date()
+        for id in ["ended", "killed"] {
+            var event = HookEvent(json: Data(#"{"hook_event_name":"UserPromptSubmit","session_id":"\#(id)"}"#.utf8))!
+            event.isHeadless = true
+            store.handle(event, now: now)
+        }
+        store.handle(HookEvent(json: Data(#"{"hook_event_name":"SessionEnd","session_id":"ended"}"#.utf8))!, now: now)
+        #expect(Array(store.headlessSessions.keys) == ["killed"])
+        store.removeExpiredSessions(now: now.addingTimeInterval(ClaudeStore.staleLifetime + 1))
+        #expect(store.headlessSessions.isEmpty)
+    }
 }

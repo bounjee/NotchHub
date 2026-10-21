@@ -110,11 +110,11 @@ final class ClaudeStore {
     static let staleLifetime: TimeInterval = 30 * 60
 
     /// Recent PreToolUse calls per session, used to find the `tool_use_id` of a permission request.
-    private var recentToolUses: [String: [(name: String, inputKey: String?, id: String)]] = [:]
+    private(set) var recentToolUses: [String: [(name: String, inputKey: String?, id: String)]] = [:]
     /// Tool calls that already finished; their ids must never be given to a new request.
     private var finishedToolUseIDs: [String] = []
-    /// Sessions run by `claude -p`; their events are ignored.
-    private var headlessSessions: Set<String> = []
+    /// Sessions run by `claude -p`, with their last event; their events are ignored.
+    private(set) var headlessSessions: [String: Date] = [:]
 
     /// Most urgent first: waiting on you, working, then the most recently finished.
     var sortedSessions: [ClaudeSession] {
@@ -184,12 +184,12 @@ final class ClaudeStore {
             locateTerminal(event)
             return
         }
-        if event.isHeadless { headlessSessions.insert(event.sessionID) }
-        if headlessSessions.contains(event.sessionID) {
+        if event.isHeadless || headlessSessions[event.sessionID] != nil { headlessSessions[event.sessionID] = now }
+        if headlessSessions[event.sessionID] != nil {
             // Never leave a hook waiting, and forget anything shown before we knew.
             responder?.reply(Self.replyLine(.none, suggestions: nil))
             if sessions.removeValue(forKey: event.sessionID) != nil { refreshHeadline() }
-            if event.name == "SessionEnd" { headlessSessions.remove(event.sessionID) }
+            if event.name == "SessionEnd" { headlessSessions[event.sessionID] = nil }
             return
         }
         defer { refreshHeadline() }
@@ -367,12 +367,16 @@ final class ClaudeStore {
             if session.status == .needsApproval { return true }
             return now.timeIntervalSince(session.lastEventAt) < Self.staleLifetime
         }
+        // Sessions killed without SessionEnd leave bookkeeping behind; drop it with them.
+        recentToolUses = recentToolUses.filter { sessions[$0.key] != nil }
+        headlessSessions = headlessSessions.filter { now.timeIntervalSince($0.value) < Self.staleLifetime }
     }
 
     func dismiss(_ id: ClaudeSession.ID) {
         defer { refreshHeadline() }
         resolvePending(in: id, with: .none)
         sessions[id] = nil
+        recentToolUses[id] = nil
     }
 
     // MARK: - Helpers

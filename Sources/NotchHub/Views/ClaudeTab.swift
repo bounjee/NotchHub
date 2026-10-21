@@ -222,6 +222,7 @@ private struct SessionRow: View {
         .buttonStyle(.plain)
         .foregroundStyle(tint.map { AnyShapeStyle($0) } ?? AnyShapeStyle(.secondary))
         .help(help)
+        .accessibilityLabel(help)
     }
 }
 
@@ -280,6 +281,8 @@ struct StatusIndicator: View {
             }
         }
         .frame(height: 14)
+        // The status is always spelled out next to it.
+        .accessibilityHidden(true)
     }
 }
 

@@ -153,6 +153,15 @@ nonisolated(unsafe) private let bash: [String: Any] = ["tool_name": "Bash", "too
         #expect(store.sessions.isEmpty)
     }
 
+    @Test func killedSessionsLeaveNoBookkeeping() {
+        let start = Date()
+        store.handle(event("PreToolUse", bash.merging(["tool_use_id": "t1"]) { $1 }), now: start)
+        #expect(store.recentToolUses["s1"]?.count == 1)
+        store.removeExpiredSessions(now: start.addingTimeInterval(31 * 60))
+        #expect(store.sessions.isEmpty)
+        #expect(store.recentToolUses.isEmpty)
+    }
+
     @Test func toolSummaries() {
         #expect(HookEvent.summary(tool: "Edit", input: ["file_path": NSHomeDirectory() + "/a.swift"]) == "~/a.swift")
         #expect(HookEvent.summary(tool: "WebFetch", input: ["url": "https://x.dev"]) == "https://x.dev")

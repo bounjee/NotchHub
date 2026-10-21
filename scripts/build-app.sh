@@ -15,7 +15,8 @@ cp Resources/AppIcon.icns "$APP/Contents/Resources/"
 # English is the development language (the keys); other languages live in <lang>.lproj.
 for lproj in Resources/*.lproj; do cp -R "$lproj" "$APP/Contents/Resources/"; done
 
-VERSION="$(git describe --tags --always 2>/dev/null || echo 1.0)"
+# Build number: the commit count, so every pushed commit builds a higher version.
+VERSION="$(git rev-list --count HEAD 2>/dev/null || echo 1)"
 cat > "$APP/Contents/Info.plist" <<PLIST
 <?xml version="1.0" encoding="UTF-8"?>
 <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
