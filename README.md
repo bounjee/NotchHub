@@ -75,7 +75,8 @@ Hover over the notch or click it to open the panel. Switch between them with the
   - It also lands on the shelf.
 - **One permission.** macOS asks once for Screen Recording permission (System Settings → Privacy & Security). Two things to know:
   - macOS Sequoia asks every app that records the screen to confirm this again once a month.
-  - The app is ad-hoc signed, so macOS may ask again after you install an update.
+  - After you turn it on, use **Restart** in the Capture tab, because macOS only applies the permission to a fresh launch.
+  - Releases are signed with the same certificate every time, so the permission stays when you update.
 
   Recording a single window uses the system's own window picker, which needs no separate permission.
 
@@ -128,7 +129,15 @@ ditto dist/NotchHub.app /Applications/NotchHub.app && open /Applications/NotchHu
 
 Then click the notch icon in the menu bar and choose **Connect Claude Code**. New Claude Code sessions will show up in the notch. Sessions that were already running pick up the hooks the next time they start.
 
-The app is ad-hoc signed, since you build it yourself. It runs locally and makes no network requests.
+It runs locally and makes no network requests.
+
+If you build it yourself, run this once first:
+
+```bash
+./scripts/make-signing-identity.sh
+```
+
+It creates a self-signed certificate in its own keychain under `~/.notchhub-signing`. Your login keychain isn't touched and nothing is marked as trusted. `build-app.sh` uses this certificate when it's there. Without it, every build gets a new signature, and macOS asks for Screen Recording permission again after each one.
 
 ## How it works
 

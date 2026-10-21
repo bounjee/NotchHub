@@ -101,13 +101,15 @@ private struct PermissionBanner: View {
             Image(systemName: "lock.fill").foregroundStyle(.orange)
             VStack(alignment: .leading, spacing: 2) {
                 Text("NotchHub needs Screen Recording permission").font(.system(size: 12, weight: .medium))
-                Text("Turn it on in System Settings, then reopen NotchHub.")
+                Text("Turn it on in System Settings, then restart NotchHub.")
                     .font(.system(size: 11))
                     .foregroundStyle(.secondary)
             }
             Spacer()
             Button("Open Settings") { capture.requestPermission() }
                 .buttonStyle(PillButtonStyle(kind: .secondary))
+            Button("Restart") { ScreenCapture.relaunch() }
+                .buttonStyle(PillButtonStyle(kind: .primary))
         }
         .padding(12)
         .background(RoundedRectangle(cornerRadius: 12, style: .continuous).fill(.orange.opacity(0.12)))

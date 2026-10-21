@@ -66,6 +66,17 @@ final class ScreenCapture: NSObject {
         if !hasPermission { Self.openPrivacySettings() }
     }
 
+    /// macOS only applies a newly granted Screen Recording permission to a fresh launch.
+    static func relaunch() {
+        let path = Bundle.main.bundleURL.path
+        let opener = Process()
+        opener.executableURL = URL(fileURLWithPath: "/bin/sh")
+        // Wait for this instance to quit, or the new one sees the old socket and steps aside.
+        opener.arguments = ["-c", "sleep 1; /usr/bin/open \"$0\"", path]
+        try? opener.run()
+        NSApp.terminate(nil)
+    }
+
     static func openPrivacySettings() {
         NSWorkspace.shared.open(URL(string: "x-apple.systempreferences:com.apple.preference.security?Privacy_ScreenCapture")!)
     }

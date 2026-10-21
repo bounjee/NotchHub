@@ -44,5 +44,22 @@ cat > "$APP/Contents/Info.plist" <<PLIST
 </plist>
 PLIST
 
-codesign --force --deep -s - "$APP"
+# A stable identity (scripts/make-signing-identity.sh) keeps Screen Recording permission
+# across updates; without one, fall back to an ad-hoc signature (CI, other Macs).
+SIGNING_KEYCHAIN="$HOME/.notchhub-signing/signing.keychain-db"
+if [ -f "$SIGNING_KEYCHAIN" ]; then
+    security unlock-keychain -p notchhub-signing "$SIGNING_KEYCHAIN"
+    IDENTITY="$(security find-identity -p codesigning "$SIGNING_KEYCHAIN" | awk '/NotchHub Self-Signed/ { print $2; exit }')"
+    # codesign only finds identities in the search list: add the keychain for this one call.
+    ORIGINAL_KEYCHAINS=()
+    while IFS= read -r line; do ORIGINAL_KEYCHAINS+=("$(echo "$line" | tr -d ' "')"); done < <(security list-keychains -d user)
+    restore_keychains() { security list-keychains -d user -s "${ORIGINAL_KEYCHAINS[@]}"; }
+    trap restore_keychains EXIT
+    security list-keychains -d user -s "${ORIGINAL_KEYCHAINS[@]}" "$SIGNING_KEYCHAIN"
+    codesign --force --deep -s "$IDENTITY" "$APP"
+    restore_keychains
+    trap - EXIT
+else
+    codesign --force --deep -s - "$APP"
+fi
 echo "Built $APP"

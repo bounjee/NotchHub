@@ -147,5 +147,6 @@
 "Stop recording" = "Kaydı durdur";
 "Stop Recording" = "Kaydı durdur";
 "NotchHub needs Screen Recording permission" = "NotchHub'ın ekran kaydı iznine ihtiyacı var";
-"Turn it on in System Settings, then reopen NotchHub." = "Sistem Ayarları'nda aç, sonra NotchHub'ı yeniden başlat.";
+"Turn it on in System Settings, then restart NotchHub." = "Sistem Ayarları'nda aç, sonra NotchHub'ı yeniden başlat.";
+"Restart" = "Yeniden başlat";
 "No screen to record" = "Kaydedilecek ekran bulunamadı";
