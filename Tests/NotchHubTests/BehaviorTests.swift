@@ -198,9 +198,8 @@ func makeModel() -> NotchModel {
         store.onPeek = { peeks.append($0) }
         store.handle(hook("UserPromptSubmit"))
         store.handle(hook("PreToolUse", bash("ls", id: "t1")))
+        // A shell left running in the background does not keep the turn from being done.
         store.handle(hook("Stop", ["background_tasks": [["id": "b"]]]))
-        #expect(peeks.isEmpty)
-        store.handle(hook("Stop", ["background_tasks": []]))
         #expect(peeks == [.claudeDone("project")])
     }
 

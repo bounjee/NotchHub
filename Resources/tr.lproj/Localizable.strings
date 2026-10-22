@@ -150,3 +150,6 @@
 "Turn it on in System Settings, then restart NotchHub." = "Sistem Ayarları'nda aç, sonra NotchHub'ı yeniden başlat.";
 "Restart" = "Yeniden başlat";
 "No screen to record" = "Kaydedilecek ekran bulunamadı";
+
+/* Background tasks */
+"^[%lld background task](inflect: true) running" = "%lld arka plan görevi çalışıyor";

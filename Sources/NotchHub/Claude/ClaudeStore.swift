@@ -17,6 +17,8 @@ struct ClaudeSession: Identifiable, Equatable {
     /// When the current turn started working, and how many tools it used.
     var workStartedAt: Date?
     var toolUses = 0
+    /// Shells or agents still running in the background after the turn finished.
+    var backgroundTasks = 0
     /// A finished (or failed) turn the user has not looked at yet.
     var unseen = false
 
@@ -220,6 +222,7 @@ final class ClaudeStore {
         case "UserPromptSubmit":
             resolvePending(in: sid, with: .none)
             pendingAsks[sid] = nil
+            sessions[sid]?.backgroundTasks = 0
             update(sid, event, now) { $0.status = .working; $0.currentTool = nil }
 
         case "PreToolUse":
@@ -294,16 +297,19 @@ final class ClaudeStore {
             let worked = sessions[sid]?.didRealWork(at: now) ?? false
             // A turn that ends on a question is waiting for the user, not done.
             let boxQuestion = pendingAsks.removeValue(forKey: sid)
-            let asks = !event.hasBackgroundTasks && (boxQuestion != nil || Self.asksQuestion(event.lastAssistantMessage ?? ""))
+            let asks = boxQuestion != nil || Self.asksQuestion(event.lastAssistantMessage ?? "")
+            // The turn is over even if it left a shell (a dev server, a watcher) running in the
+            // background: that is done, with a note, not "thinking" for as long as the shell lives.
             update(sid, event, now) {
-                $0.status = event.hasBackgroundTasks ? .working : asks ? .waitingForUser : .done
+                $0.status = asks ? .waitingForUser : .done
                 $0.currentTool = asks ? boxQuestion : nil
+                $0.backgroundTasks = event.backgroundTaskCount
                 if let message = event.lastAssistantMessage, !message.isEmpty { $0.lastMessage = message }
-                if !event.hasBackgroundTasks, worked || asks { $0.unseen = true }
+                if worked || asks { $0.unseen = true }
             }
             let label = Self.shortLabel(sessions[sid]?.label ?? "Claude")
             if asks { onPeek?(.question(label)) }
-            else if !event.hasBackgroundTasks, worked { onPeek?(.claudeDone(label)) }
+            else if worked { onPeek?(.claudeDone(label)) }
 
         case "StopFailure":
             resolvePending(in: sid, with: .none)

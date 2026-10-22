@@ -82,7 +82,7 @@ enum Snapshot {
         send(["hook_event_name": "UserPromptSubmit", "session_id": "c", "cwd": "/Users/me/code/landing-page", "notchhub_project": "landing-page"])
         send(["hook_event_name": "PreToolUse", "session_id": "c", "cwd": "/Users/me/code/landing-page", "tool_name": "Write",
               "tool_input": ["file_path": "/Users/me/code/landing-page/index.html"], "tool_use_id": "t-c"])
-        send(["hook_event_name": "Stop", "session_id": "c", "cwd": "/Users/me/code/landing-page", "background_tasks": [],
+        send(["hook_event_name": "Stop", "session_id": "c", "cwd": "/Users/me/code/landing-page", "background_tasks": [["id": "dev-server"]],
               "last_assistant_message": "The hero section is responsive now and the contact form validates its fields."])
         model.open(tab: .claude)
         captureOpen("open-panel")

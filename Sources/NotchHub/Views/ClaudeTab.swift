@@ -144,6 +144,13 @@ private struct SessionRow: View {
                 HStack(spacing: 6) {
                     Text(verbatim: ClaudeStore.shortLabel(session.label, max: 30)).font(.system(size: 13, weight: .semibold)).fixedSize()
                     Text(verbatim: session.status.title).font(.system(size: 12)).foregroundStyle(session.status.tint).fixedSize()
+                    if isFinished, session.backgroundTasks > 0 {
+                        Label("^[\(session.backgroundTasks) background task](inflect: true) running", systemImage: "terminal")
+                            .font(.system(size: 11))
+                            .foregroundStyle(.secondary)
+                            .labelStyle(.titleAndIcon)
+                            .fixedSize()
+                    }
                     if session.unseen {
                         Circle().fill(session.status.tint).frame(width: 5, height: 5)
                             .help(String(localized: "Not seen yet"))

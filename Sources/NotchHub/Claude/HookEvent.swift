@@ -21,7 +21,9 @@ struct HookEvent: Sendable {
     var askedQuestion: String?
     var toolUseID: String?
     var lastAssistantMessage: String?
-    var hasBackgroundTasks = false
+    /// Shells or agents left running in the background when the turn ended.
+    var backgroundTaskCount = 0
+    var hasBackgroundTasks: Bool { backgroundTaskCount > 0 }
     var notificationType: String?
     var errorMessage: String?
     /// `permission_suggestions` re-encoded as JSON, passed back as `updatedPermissions`.
@@ -70,7 +72,7 @@ struct HookEvent: Sendable {
             }
         }
         lastAssistantMessage = object["last_assistant_message"] as? String
-        if let tasks = object["background_tasks"] as? [Any] { hasBackgroundTasks = !tasks.isEmpty }
+        if let tasks = object["background_tasks"] as? [Any] { backgroundTaskCount = tasks.count }
         notificationType = object["notification_type"] as? String
         if let error = object["error"] as? String { errorMessage = error }
         if let suggestions = object["permission_suggestions"] as? [Any], !suggestions.isEmpty,

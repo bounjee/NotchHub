@@ -48,8 +48,12 @@ nonisolated(unsafe) private let bash: [String: Any] = ["tool_name": "Bash", "too
         #expect(store.sessions["s1"]?.currentTool == "github · create_issue: Bug")
     }
 
-    @Test func stopWithBackgroundTasksKeepsWorking() {
-        store.handle(event("Stop", ["background_tasks": [["id": "b1"]]]))
+    @Test func aTurnThatLeavesAShellRunningIsDone() {
+        store.handle(event("Stop", ["background_tasks": [["id": "b1"], ["id": "b2"]]]))
+        #expect(store.sessions["s1"]?.status == .done)
+        #expect(store.sessions["s1"]?.backgroundTasks == 2)
+        store.handle(event("UserPromptSubmit"))
+        #expect(store.sessions["s1"]?.backgroundTasks == 0)
         #expect(store.sessions["s1"]?.status == .working)
     }
 
